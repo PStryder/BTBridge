@@ -1,0 +1,15 @@
+{
+  "Name": "BTBridge",
+  "Description": "Localhost JSON bridge that exposes BattleTech game state to an external AI agent.",
+  "Author": "HexyLab",
+  "Version": "0.1.0",
+  "BattleTechVersion": "1.9.1",
+  "Enabled": true,
+  "IsSaveAffecting": false,
+  "DLL": "BTBridge.dll",
+  "DLLEntryPoint": "BTBridge.Main.Init",
+  "Settings": {
+    "Port": 8787,
+    "MainThreadTimeoutMs": 5000
+  }
+}

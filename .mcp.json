@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "battletech": {
+      "command": "uv",
+      "args": ["run", "--directory", "server", "btai-mcp"]
+    }
+  }
+}

@@ -1,0 +1,24 @@
+[project]
+name = "btai"
+version = "0.1.0"
+description = "MCP server that lets an AI agent read, build for, and (eventually) play HBS BattleTech"
+readme = "README.md"
+authors = [
+    { name = "PStryder", email = "156626609+PStryder@users.noreply.github.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "mcp[cli]>=2.3,<3",
+]
+
+[project.scripts]
+btai-mcp = "btai.server:main"
+
+[build-system]
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
