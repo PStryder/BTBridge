@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using BattleTech;
 using BTBridge.Bridge;
+using BTBridge.Combat;
 using BTBridge.Patches;
 using BTBridge.State;
 using Newtonsoft.Json;
@@ -36,7 +37,73 @@ namespace BTBridge
             new Route { Method = "DELETE", Path = "/skirmish/mechs", Handler = r => Skirmish.DeleteMech(r.QueryOr("id", null)) },
             new Route { Method = "POST", Path = "/skirmish/lances", Handler = SkirmishSaveLance },
             new Route { Method = "DELETE", Path = "/skirmish/lances", Handler = r => Skirmish.DeleteLance(r.QueryOr("id", null)) },
+
+            // combat
+            new Route { Method = "GET", Path = "/combat/control", Handler = r => ControlView() },
+            new Route { Method = "POST", Path = "/combat/control", Handler = SetControl },
+            new Route { Method = "GET", Path = "/combat/state", Handler = r => CombatSerializer.State(RequireCombat(), RequireCombat().LocalPlayerTeam) },
+            new Route { Method = "GET", Path = "/combat/decision", Handler = DecisionView },
+            new Route { Method = "POST", Path = "/combat/decision", Handler = r =>
+                {
+                    var body = Body(r);
+                    return DecisionBroker.Answer(RequireCombat(), body.Value<string>("id"), body["order"] as JObject);
+                } },
+            new Route { Method = "GET", Path = "/combat/history", Handler = r => DecisionBroker.RecentHistory() },
         };
+
+        private static CombatGameState RequireCombat() =>
+            Game?.Combat ?? throw new BridgeException(409, "no combat in progress");
+
+        private static object ControlView() => new
+        {
+            next_mission = CombatControl.Requested.ToString(),
+            current_mission = Game?.Combat != null ? CombatControl.ActiveMode.ToString() : null,
+            decision_timeout_seconds = CombatControl.DecisionTimeoutSeconds,
+            modes = new[] { "Human", "Agent", "BuiltinAI" },
+            note = "the mode is applied when a mission builds its teams, so changes take effect from the next mission",
+        };
+
+        private static object SetControl(BridgeRequest r)
+        {
+            var body = Body(r);
+            string mode = body.Value<string>("player");
+            if (mode != null)
+            {
+                try
+                {
+                    CombatControl.Requested = (PlayerControl)System.Enum.Parse(typeof(PlayerControl), mode, ignoreCase: true);
+                }
+                catch (System.ArgumentException)
+                {
+                    throw new BridgeException(400, $"unknown mode '{mode}' (Human | Agent | BuiltinAI)");
+                }
+            }
+            float? timeout = body.Value<float?>("decision_timeout_seconds");
+            if (timeout.HasValue)
+            {
+                CombatControl.DecisionTimeoutSeconds = System.Math.Max(0f, timeout.Value);
+            }
+            Log.Info($"combat control: next mission {CombatControl.Requested}, timeout {CombatControl.DecisionTimeoutSeconds}s");
+            return ControlView();
+        }
+
+        private static object DecisionView(BridgeRequest r)
+        {
+            var combat = RequireCombat();
+            var d = DecisionBroker.Current;
+            if (d == null)
+            {
+                return new
+                {
+                    open = false,
+                    agent_controls_player = CombatControl.IsAgentTeam(combat.LocalPlayerTeam),
+                    active_team = (combat.TurnDirector.ActiveTurnActor as Team)?.DisplayName,
+                    round = combat.TurnDirector.CurrentRound,
+                    phase = combat.TurnDirector.CurrentPhase,
+                };
+            }
+            return DecisionBroker.View(d, combat);
+        }
 
         private static GameInstance Game => UnityGameInstance.BattleTechGame;
 

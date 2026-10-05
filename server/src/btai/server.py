@@ -7,6 +7,7 @@ Two tool families:
 
 from __future__ import annotations
 
+import time
 from functools import lru_cache
 from typing import Any
 from urllib.parse import quote
@@ -251,6 +252,74 @@ def skirmish_save_lance(name: str, units: list[dict], replace_id: str | None = N
 def skirmish_delete_lance(lance_id: str) -> dict:
     """Delete a custom skirmish lance."""
     return _live(f"/skirmish/lances?id={quote(lance_id)}", method="DELETE")
+
+
+# -- combat ---------------------------------------------------------------------
+
+
+@mcp.tool()
+def combat_control(player: str | None = None, decision_timeout_seconds: float | None = None) -> dict:
+    """Get or set who commands the player's lance in combat. Takes effect from the NEXT mission start.
+
+    player: Human (vanilla; state is still readable for advice) | Agent (you decide every
+    activation; the stock AI offers a suggestion) | BuiltinAI (stock AI plays your lance).
+    decision_timeout_seconds: 0 = wait for you forever; otherwise take the stock AI's suggestion
+    after that long.
+    """
+    body = {k: v for k, v in {"player": player, "decision_timeout_seconds": decision_timeout_seconds}.items() if v is not None}
+    return _live("/combat/control", body) if body else _live("/combat/control")
+
+
+@mcp.tool()
+def combat_state() -> dict:
+    """The battlefield as your team sees it: round/phase, every own and allied unit, and enemies
+    at the visibility you have (blips show position only). Positions are world x/z plus hex q/r."""
+    return _live("/combat/state")
+
+
+@mcp.tool()
+def combat_decision() -> dict:
+    """The open decision, if any: the unit to act, stage (move | attack), the stock AI's suggestion,
+    the AI's top-ranked move candidates (with score factors), and per-weapon hit chances against
+    each visible enemy."""
+    return _live("/combat/decision")
+
+
+@mcp.tool()
+def combat_wait_for_decision(max_wait_seconds: float = 60) -> dict:
+    """Block until a decision opens for your lance (or the mission ends / time runs out), then return it.
+    Use this between decisions instead of polling combat_decision."""
+    deadline = time.monotonic() + max(1.0, min(max_wait_seconds, 300.0))
+    last: Any = None
+    while time.monotonic() < deadline:
+        last = _live("/combat/decision")
+        if isinstance(last, dict) and (last.get("open") or "error" in last):
+            return last
+        time.sleep(0.5)
+    return {"open": False, "timed_out": True, "last": last}
+
+
+@mcp.tool()
+def combat_decide(decision_id: str, order: dict) -> dict:
+    """Answer the open decision. The mod validates the order before the game executes it.
+
+    order.action:
+      "accept"  - do what the stock AI suggested
+      "move"    - {"candidate": i} from the decision's candidates, or {"position": {"x","z"},
+                  "move": "walk|sprint|backward|jump"}; optional "facing" (degrees) or
+                  "face_unit" (guid). Sprinting forfeits the attack this round.
+      "attack"  - {"target": guid, "weapons": [uid, ...]} (omit weapons = all that can fire).
+                  Firing ends the unit's activation.
+      "brace"   - end the activation, bracing (evasion/stability benefit).
+    After a move, the same unit gets an attack-stage decision.
+    """
+    return _live("/combat/decision", {"id": decision_id, "order": order})
+
+
+@mcp.tool()
+def combat_history() -> list | dict:
+    """The last 50 decisions: unit, round, stage, what was chosen, and how long it took."""
+    return _live("/combat/history")
 
 
 def main() -> None:
