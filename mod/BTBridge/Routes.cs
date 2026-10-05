@@ -46,9 +46,14 @@ namespace BTBridge
             new Route { Method = "POST", Path = "/combat/decision", Handler = r =>
                 {
                     var body = Body(r);
-                    return DecisionBroker.Answer(RequireCombat(), body.Value<string>("id"), body["order"] as JObject);
+                    return DecisionBroker.Answer(RequireCombat(), body.Value<string>("id"), body.Value<string>("unit"), body["order"] as JObject);
                 } },
             new Route { Method = "GET", Path = "/combat/history", Handler = r => DecisionBroker.RecentHistory() },
+            new Route { Method = "GET", Path = "/combat/reachable", Handler = r => DecisionBroker.ReachableView(
+                RequireCombat(), r.QueryOr("move", "walk"),
+                float.TryParse(r.QueryOr("x", ""), out var x) ? x : (float?)null,
+                float.TryParse(r.QueryOr("z", ""), out var z) ? z : (float?)null,
+                int.TryParse(r.QueryOr("limit", ""), out var n) ? n : 20) },
         };
 
         private static CombatGameState RequireCombat() =>

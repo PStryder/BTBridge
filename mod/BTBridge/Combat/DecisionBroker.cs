@@ -225,6 +225,83 @@ namespace BTBridge.Combat
             }
         }
 
+        /// <summary>How far a requested point may be from the node actually used.</summary>
+        public const float SnapTolerance = 25f;
+
+        /// <summary>
+        /// Path grids are sparse lattices: an exact-cell lookup (GetValidPathNodeAt) misses almost
+        /// any arbitrary point. Like the movement UI, snap to the nearest reachable node instead.
+        /// </summary>
+        private static PathNode Snap(AbstractActor unit, MoveType type, Vector3 wanted)
+        {
+            if (!unit.Pathing.ArePathGridsComplete)
+            {
+                throw new BridgeException(409, "the unit's path grids are still being computed; retry in a moment");
+            }
+            var exact = unit.Pathing.getGrid(type).GetValidPathNodeAt(wanted, Budget(unit, type));
+            if (exact != null)
+            {
+                return exact;
+            }
+            var nearest = Reachable(unit, type).OrderBy(n => FlatDistance(n.Position, wanted)).FirstOrDefault()
+                ?? throw new BridgeException(400, $"no position is reachable by {MoveName(type)} this turn");
+            float off = FlatDistance(nearest.Position, wanted);
+            if (off > SnapTolerance)
+            {
+                var p = nearest.Position;
+                throw new BridgeException(400, $"not reachable by {MoveName(type)}; the nearest reachable point is x={CombatSerializer.Round(p.x)} z={CombatSerializer.Round(p.z)} ({CombatSerializer.Round(off)} m away). Use /combat/reachable to explore.");
+            }
+            return nearest;
+        }
+
+        public static IEnumerable<PathNode> Reachable(AbstractActor unit, MoveType type)
+        {
+            float budget = Budget(unit, type);
+            return unit.Pathing.getGrid(type).GetSampledPathNodes()
+                .Where(n => n != null && n.IsValidDestination && n.CostToThisNode > -0.01f && n.CostToThisNode < budget);
+        }
+
+        private static float FlatDistance(Vector3 a, Vector3 b) => Vector2.Distance(new Vector2(a.x, a.z), new Vector2(b.x, b.z));
+
+        /// <summary>Reachable destinations for the open decision's unit, nearest first to a point of interest.</summary>
+        public static object ReachableView(CombatGameState combat, string move, float? nearX, float? nearZ, int limit)
+        {
+            var d = Current ?? throw new BridgeException(409, "no decision is open");
+            var unit = combat.FindActorByGUID(d.UnitGuid) ?? throw new BridgeException(409, "unit no longer exists");
+            var type = ParseMove(move ?? "walk");
+            IEnumerable<Vector3> points;
+            if (type == MoveType.Jumping)
+            {
+                var mech = unit as Mech ?? throw new BridgeException(400, "only mechs can jump");
+                points = mech.JumpPathing.GetSampledPathNodes().Where(n => n != null).Select(n => n.Position);
+            }
+            else
+            {
+                if (!unit.Pathing.ArePathGridsComplete)
+                {
+                    throw new BridgeException(409, "the unit's path grids are still being computed; retry in a moment");
+                }
+                points = Reachable(unit, type).Select(n => n.Position);
+            }
+            var focus = new Vector3(nearX ?? unit.CurrentPosition.x, 0f, nearZ ?? unit.CurrentPosition.z);
+            var list = points.OrderBy(p => FlatDistance(p, focus)).Take(Math.Max(1, Math.Min(limit, 100))).ToList();
+            var enemies = combat.GetAllEnemiesOf(unit).Where(e => !e.IsDead && unit.VisibilityToTargetUnit(e) != VisibilityLevel.None).ToList();
+            return new
+            {
+                unit = unit.DisplayName,
+                move = MoveName(type),
+                total = points.Count(),
+                points = list.Select(p => new
+                {
+                    position = CombatSerializer.Position(combat, p),
+                    distance_from_focus = CombatSerializer.Round(FlatDistance(p, focus)),
+                    nearest_enemy = enemies.Count == 0 ? null : enemies
+                        .Select(e => new { guid = e.GUID, name = e.DisplayName, distance = CombatSerializer.Round(FlatDistance(p, e.CurrentPosition)) })
+                        .OrderBy(e => e.distance).First(),
+                }).ToList(),
+            };
+        }
+
         private static float Budget(AbstractActor unit, MoveType type)
         {
             switch (type)
@@ -279,12 +356,23 @@ namespace BTBridge.Combat
         // -- turning the agent's answer into an invocation -----------------------------
 
         /// <summary>Validate the agent's order and prepare the invocation. Throws BridgeException(400) if invalid.</summary>
-        public static object Answer(CombatGameState combat, string id, JObject order)
+        public static object Answer(CombatGameState combat, string id, string unitGuid, JObject order)
         {
             var d = Current;
             if (d == null || d.Id != id)
             {
                 throw new BridgeException(409, d == null ? "no decision is open" : $"decision {id} is not current (current is {d.Id})");
+            }
+            // Weapon uids repeat across units ("0", "3"...), so an order meant for one unit can be
+            // valid for another. The caller must say which unit it is ordering.
+            if (string.IsNullOrEmpty(unitGuid))
+            {
+                throw new BridgeException(400, "unit (the guid of the unit you are ordering) is required");
+            }
+            if (unitGuid != d.UnitGuid)
+            {
+                var actual = combat.FindActorByGUID(d.UnitGuid);
+                throw new BridgeException(409, $"decision {id} is for {actual?.DisplayName} ({d.UnitGuid}), not {unitGuid}; re-read the decision");
             }
             if (d.Ready != null)
             {
@@ -369,8 +457,7 @@ namespace BTBridge.Combat
                 {
                     throw new BridgeException(400, "this unit cannot sprint now");
                 }
-                var node = unit.Pathing.getGrid(moveType).GetValidPathNodeAt(dest, Budget(unit, moveType))
-                    ?? throw new BridgeException(400, $"position is not reachable by {MoveName(moveType)} this turn");
+                var node = Snap(unit, moveType, dest);
                 dest = node.Position;
             }
 

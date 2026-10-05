@@ -300,8 +300,21 @@ def combat_wait_for_decision(max_wait_seconds: float = 60) -> dict:
 
 
 @mcp.tool()
-def combat_decide(decision_id: str, order: dict) -> dict:
-    """Answer the open decision. The mod validates the order before the game executes it.
+def combat_reachable(move: str = "walk", x: float | None = None, z: float | None = None, limit: int = 20) -> dict:
+    """Where the deciding unit can get to this turn: reachable points for a move type
+    (walk | sprint | backward | jump), nearest first to (x, z) (default: the unit itself), each with
+    the nearest visible enemy. Move orders snap to the nearest reachable point within 25 m."""
+    query = f"/combat/reachable?move={quote(move)}&limit={limit}"
+    if x is not None and z is not None:
+        query += f"&x={x}&z={z}"
+    return _live(query)
+
+
+@mcp.tool()
+def combat_decide(decision_id: str, unit_guid: str, order: dict) -> dict:
+    """Answer the open decision for the unit it belongs to (unit_guid from the decision's `unit.guid`;
+    refused if it doesn't match, since weapon uids repeat across units). The mod validates the order
+    before the game executes it.
 
     order.action:
       "accept"  - do what the stock AI suggested
@@ -311,9 +324,10 @@ def combat_decide(decision_id: str, order: dict) -> dict:
       "attack"  - {"target": guid, "weapons": [uid, ...]} (omit weapons = all that can fire).
                   Firing ends the unit's activation.
       "brace"   - end the activation, bracing (evasion/stability benefit).
-    After a move, the same unit gets an attack-stage decision.
+    After a move, the same unit gets an attack-stage decision. Pilots with Ace Pilot
+    (CanMoveAfterShooting) may fire first and then get a move decision.
     """
-    return _live("/combat/decision", {"id": decision_id, "order": order})
+    return _live("/combat/decision", {"id": decision_id, "unit": unit_guid, "order": order})
 
 
 @mcp.tool()
