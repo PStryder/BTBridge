@@ -48,6 +48,7 @@ namespace BTBridge.State
             }
             var dm = sim.DataManager;
             var problems = new List<string>();
+            EnsureComponentUids(sim, mech);
             if (sim.GetWorkOrderEntryForMech(mech) != null)
             {
                 problems.Add("this mech already has queued mechlab work; finish or cancel it first");
@@ -171,7 +172,7 @@ namespace BTBridge.State
             }
 
             // --- validation and cost ---------------------------------------------------
-            var errors = MechBuilder.Validate(target, dm, MechValidationLevel.MechLab);
+            var errors = MechBuilder.Validate(target, dm);
             bool blocked = MechBuilder.IsBlocked(errors);
             if (blocked)
             {
@@ -243,6 +244,16 @@ namespace BTBridge.State
             {
                 throw new BridgeException(409, $"not enough funds ({sim.Funds:N0} < {plan.CBills:N0})");
             }
+            // Every removal or move must name a component actually on the mech; otherwise the game
+            // skips the step at completion ("had an invalid mechComponentID") after charging for it.
+            var onMech = new HashSet<string>(mech.Inventory.Select(c => c.SimGameUID));
+            foreach (var step in plan.WorkOrder.SubEntries.OfType<WorkOrderEntry_InstallComponent>())
+            {
+                if (step.DesiredLocation == ChassisLocations.None && !onMech.Contains(step.ComponentSimGameUID))
+                {
+                    throw new BridgeException(500, $"plan step '{step.Description}' references component {step.ComponentSimGameUID}, which is not on the mech; refusing to apply");
+                }
+            }
 
             // Mirrors MechBayPanel.OnMechLabComplete + MechLabPanel.DoConfirmRefit.
             sim.MechLabQueue.Add(plan.WorkOrder);
@@ -279,6 +290,22 @@ namespace BTBridge.State
                 }
             }
             throw new BridgeException(404, $"no active mech with GUID {mechRef}");
+        }
+
+        /// <summary>
+        /// Starting and newly acquired mechs can carry components with no SimGameUID. The mechbay
+        /// assigns them just before opening the mechlab (MechBayPanel, before mechLab.SetData);
+        /// work orders find components by UID, so do the same before planning.
+        /// </summary>
+        private static void EnsureComponentUids(SimGameState sim, MechDef mech)
+        {
+            foreach (var c in mech.Inventory)
+            {
+                if (string.IsNullOrEmpty(c.SimGameUID))
+                {
+                    c.SetSimGameUID(sim.GenerateSimGameUID());
+                }
+            }
         }
 
         /// <summary>Everything a plan depends on: component UIDs and placements, armor.</summary>

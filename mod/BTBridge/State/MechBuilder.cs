@@ -207,9 +207,14 @@ namespace BTBridge.State
             return r;
         }
 
-        public static Dictionary<string, List<string>> Validate(MechDef mech, DataManager dm, MechValidationLevel level)
+        /// <summary>
+        /// Always the Full level. The MechLab level skips slots, hardpoints, allowed locations and
+        /// equipment limits because the mechlab's drag-and-drop makes those placements impossible;
+        /// builds that arrive over the bridge never went through that UI.
+        /// </summary>
+        public static Dictionary<string, List<string>> Validate(MechDef mech, DataManager dm)
         {
-            return MechValidationRules.ValidateMechDef(level, dm, mech, null)
+            return MechValidationRules.ValidateMechDef(MechValidationLevel.Full, dm, mech, null)
                 .Where(kv => kv.Value != null && kv.Value.Count > 0)
                 .ToDictionary(kv => kv.Key.ToString(), kv => kv.Value.Select(t => t.ToString()).ToList());
         }

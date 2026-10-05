@@ -23,6 +23,12 @@ namespace BTBridge.State
         private static DataManager Dm =>
             UnityGameInstance.BattleTechGame?.DataManager ?? throw new BridgeException(409, "game data not loaded");
 
+        /// <summary>GetMechDef throws on a missing id (it dereferences a null lookup), so check first.</summary>
+        private static MechDef FindCustomMech(SkirmishUnitsAndLances custom, string id) =>
+            !string.IsNullOrEmpty(id) && custom.ContainsMechDef(id) ? custom.GetMechDef(id) : null;
+
+        private static bool pilotsRequested;
+
         public static object List()
         {
             var custom = Custom;
@@ -43,7 +49,7 @@ namespace BTBridge.State
             string id = replaceId;
             if (!string.IsNullOrEmpty(replaceId))
             {
-                var existing = custom.GetMechDef(replaceId);
+                var existing = FindCustomMech(custom, replaceId);
                 if (existing == null || !existing.MechTags.Contains("unit_custom"))
                 {
                     throw new BridgeException(404, $"no custom skirmish mech '{replaceId}' to replace");
@@ -55,7 +61,7 @@ namespace BTBridge.State
             }
 
             var mech = MechBuilder.BuildNew(spec, Dm, id, name);
-            var errors = MechBuilder.Validate(mech, Dm, MechValidationLevel.MechLab);
+            var errors = MechBuilder.Validate(mech, Dm);
             if (MechBuilder.IsBlocked(errors))
             {
                 return new { saved = false, id = (string)null, validation_errors = errors, mech = MechSerializer.Mech(mech) };
@@ -73,7 +79,7 @@ namespace BTBridge.State
         public static object DeleteMech(string id)
         {
             var custom = Custom;
-            var existing = custom.GetMechDef(id);
+            var existing = FindCustomMech(custom, id);
             if (existing == null || !existing.MechTags.Contains("unit_custom"))
             {
                 throw new BridgeException(404, $"no custom skirmish mech '{id}'");
@@ -85,7 +91,18 @@ namespace BTBridge.State
 
         public static object Pilots()
         {
-            var pilots = Dm.PilotDefs
+            var dm = Dm;
+            if (!pilotsRequested && !dm.PilotDefs.Any(kv => kv.Value != null && MechValidationRules.PilotIsValidForSkirmish(kv.Value)))
+            {
+                // The game only loads skirmish pilots when the skirmish mechbay opens
+                // (SkirmishMechBayPanel); request them the same way.
+                pilotsRequested = true;
+                var request = dm.CreateLoadRequest(r => Log.Info("skirmish pilot defs loaded"), filterByOwnership: true);
+                request.AddAllOfTypeBlindLoadRequest(BattleTechResourceType.PilotDef, true);
+                request.ProcessRequests();
+                return new { pilots = new object[0], note = "loading skirmish pilots; call again in a few seconds" };
+            }
+            var pilots = dm.PilotDefs
                 .Select(kv => kv.Value)
                 .Where(p => p != null && MechValidationRules.PilotIsValidForSkirmish(p))
                 .Select(p => new
@@ -103,7 +120,7 @@ namespace BTBridge.State
             return new
             {
                 pilots,
-                note = pilots.Count == 0 ? "no skirmish pilots loaded yet; open the skirmish mechbay once so the game loads them" : null,
+                note = pilots.Count == 0 ? "no skirmish pilots available yet; if this persists, open the skirmish mechbay once" : null,
             };
         }
 
@@ -129,7 +146,7 @@ namespace BTBridge.State
             int value = 0;
             foreach (var u in units)
             {
-                var mech = custom.GetMechDef(u.MechId) ?? (dm.MechDefs.TryGet(u.MechId ?? "", out var stock) ? stock : null);
+                var mech = FindCustomMech(custom, u.MechId) ?? (dm.MechDefs.TryGet(u.MechId ?? "", out var stock) ? stock : null);
                 if (mech == null)
                 {
                     throw new BridgeException(400, $"unknown mech '{u.MechId}' (stock mechdef id or custom skirmish mech id)");

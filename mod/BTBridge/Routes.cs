@@ -119,7 +119,7 @@ namespace BTBridge
             var dm = Game?.DataManager ?? throw new BridgeException(409, "game data not loaded");
             var spec = BuildSpec.Parse(Body(r)["mechdef"], dm);
             var mech = MechBuilder.BuildNew(spec, dm, "mechdef_BTBRIDGE_validate", "Proposed build");
-            var errors = MechBuilder.Validate(mech, dm, MechValidationLevel.MechLab);
+            var errors = MechBuilder.Validate(mech, dm);
             return new
             {
                 can_field = !MechBuilder.IsBlocked(errors),
