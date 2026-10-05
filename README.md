@@ -42,7 +42,16 @@ Environment variables: `BATTLETECH_DIR` (game install, default `F:\SteamLibrary\
 
 ## Installing the mod
 
-Not decided yet: either use the game's built-in mod loader, or install ModTek. The mod works under both, since they read the same `mod.json` and call the same `Init(modDir, settingsJson)`. The install step will go here after the first in-game run.
+The mod uses [ModTek](https://github.com/BattletechModders/ModTek) v4.5.1. ModTek is installed by hand, not through Vortex: extract `winhttp.dll`, `doorstop_config.ini` and `Mods/ModTek/` from the release zip into the game folder. The mod still loads under the game's built-in loader as well, since both read the same `mod.json` and call `Init(modDir, settingsJson)`.
+
+```powershell
+scripts\deploy.ps1                   # build, then junction Mods\BTBridge -> mod\BTBridge\bin\Release
+scripts\deploy.ps1 -NoBuild          # just (re)create the junction
+scripts\deploy.ps1 -Undeploy         # remove the junction only
+scripts\deploy.ps1 -UninstallModTek  # remove the junction and ModTek
+```
+
+Because of the junction, a rebuild goes live on the next game launch. Close the game before building, since it locks the DLL. Logs go to `BTBridge.log` next to the DLL, and ModTek's own logs go to `Mods\.modtek\`. When ModTek loads, the main menu's version string reads `/W MODTEK`.
 
 ## Bridge API (v0.1, read-only)
 

@@ -47,6 +47,24 @@ namespace BTBridge.State
             return d;
         }
 
+        /// <summary>
+        /// The build in the editable spec format accepted by validate / refit / skirmish save.
+        /// Fixed equipment is omitted: the chassis supplies it.
+        /// </summary>
+        public static object Spec(MechDef mech) => mech == null ? null : new
+        {
+            ChassisID = mech.ChassisID,
+            Locations = Locations.Select(loc =>
+            {
+                var l = mech.GetLocationLoadoutDef(loc);
+                return new { Location = loc.ToString(), AssignedArmor = l.AssignedArmor, AssignedRearArmor = l.AssignedRearArmor };
+            }).ToList(),
+            inventory = (mech.Inventory ?? new MechComponentRef[0])
+                .Where(c => !c.IsFixed)
+                .Select(c => new { ComponentDefID = c.ComponentDefID, MountedLocation = c.MountedLocation.ToString() })
+                .ToList(),
+        };
+
         public static Dictionary<string, object> Location(MechDef mech, ChassisLocations loc)
         {
             var loadout = mech.GetLocationLoadoutDef(loc);

@@ -25,6 +25,21 @@ class FakeMod(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
+    def do_POST(self):
+        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        self._reply(200, {"ok": True, "data": {"echo": body, "path": self.path}})
+
+    def do_DELETE(self):
+        self._reply(200, {"ok": True, "data": {"deleted": self.path}})
+
+    def _reply(self, status, body):
+        raw = json.dumps(body).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
     def log_message(self, *args):
         pass
 
@@ -49,6 +64,27 @@ def test_error_envelope_raises_with_mod_message(fake_bridge):
 def test_unknown_route(fake_bridge):
     with pytest.raises(BridgeError, match="no route"):
         fake_bridge.get("/nope")
+
+
+def test_post_sends_json_body(fake_bridge):
+    assert fake_bridge.post("/sim/refit/apply", {"plan_id": "refit-1"}) == {
+        "echo": {"plan_id": "refit-1"},
+        "path": "/sim/refit/apply",
+    }
+
+
+def test_delete(fake_bridge):
+    assert fake_bridge.delete("/skirmish/mechs?id=x") == {"deleted": "/skirmish/mechs?id=x"}
+
+
+def test_tools_route_through_bridge(fake_bridge, monkeypatch):
+    from btai import server
+
+    monkeypatch.setattr(server, "bridge", lambda: fake_bridge)
+    preview = server.campaign_refit_preview(2, {"ChassisID": "c"})
+    assert preview["path"] == "/sim/refit/preview"
+    assert preview["echo"] == {"mech": "2", "mechdef": {"ChassisID": "c"}}
+    assert server.skirmish_delete_mech("mechdef_CUSTOM_a b")["deleted"] == "/skirmish/mechs?id=mechdef_CUSTOM_a%20b"
 
 
 def test_unavailable_when_nothing_listening():

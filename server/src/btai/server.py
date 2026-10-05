@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from typing import Any
+from urllib.parse import quote
 
 from mcp.server.mcpserver import MCPServer
 
@@ -19,8 +20,11 @@ mcp = MCPServer(
     "battletech",
     instructions=(
         "Tools for HBS BattleTech. catalog_* and check_mech_build work offline from game data. "
-        "Live tools (game_status, campaign_*, mechlab_current, skirmish_*) need the game running with the "
-        "BTBridge mod; call game_status first. Live data includes DLC content the offline catalog lacks."
+        "Live tools (game_status, campaign_*, mechlab_current, validate_mech_build, skirmish_*) need the game "
+        "running with the BTBridge mod; call game_status first. Live data includes DLC content the offline "
+        "catalog lacks. Builds use one mechdef format everywhere: get one from campaign_mech / mechlab_current "
+        "(`spec`) or catalog_get_stock_mech, edit it, then validate. Campaign refits are two-step: "
+        "campaign_refit_preview, show the player the plan, and campaign_refit_apply only on their explicit OK."
     ),
 )
 
@@ -35,9 +39,14 @@ def bridge() -> Bridge:
     return Bridge()
 
 
-def _live(path: str) -> Any:
+def _live(path: str, body: Any = None, method: str | None = None) -> Any:
+    method = method or ("POST" if body is not None else "GET")
     try:
-        return bridge().get(path)
+        if method == "GET":
+            return bridge().get(path)
+        if method == "DELETE":
+            return bridge().delete(path)
+        return bridge().post(path, body)
     except BridgeError as e:
         return {"error": str(e)}
 
@@ -151,15 +160,97 @@ def campaign_storage() -> dict:
 
 
 @mcp.tool()
-def mechlab_current() -> dict:
-    """The build currently open in the mechlab, including unsaved edits and the game's validation errors."""
-    return _live("/mechlab/current")
+def campaign_mech(bay: int) -> dict:
+    """One active mech in full, plus its loadout as an editable `spec` (the mechdef format the
+    build tools accept). Edit the spec and pass it to campaign_refit_preview."""
+    return _live(f"/sim/mech?bay={bay}")
 
 
 @mcp.tool()
-def skirmish_custom_mechs() -> dict:
-    """The player's saved custom skirmish mechs."""
+def mechlab_current() -> dict:
+    """The build currently open in the mechlab, including unsaved edits (`current`, `current_spec`)
+    and the game's validation errors."""
+    return _live("/mechlab/current")
+
+
+# -- live build tools -----------------------------------------------------------
+
+
+@mcp.tool()
+def validate_mech_build(mechdef: dict) -> dict:
+    """Validate a build with the game's own mechlab rules (authoritative, includes DLC parts).
+
+    Same mechdef format as check_mech_build. `can_field` is false if any blocking validation
+    type fires (overweight, slots, hardpoints, jump jets, no weapons, invalid manifest).
+    Returns the built mech with the mechlab stat bars.
+    """
+    return _live("/mech/validate", {"mechdef": mechdef})
+
+
+@mcp.tool()
+def campaign_refit_preview(bay: int, mechdef: dict) -> dict:
+    """Plan a campaign refit of the mech in `bay` to the target build. Changes nothing.
+
+    Returns the step list (removals to storage, moves, installs from storage, armor changes),
+    C-bill and day cost, missing parts, the game's validation of the result, and a plan_id
+    when the plan can be applied. Parts can only come from company storage.
+    Show the player the steps and cost before asking whether to apply.
+    """
+    return _live("/sim/refit/preview", {"mech": str(bay), "mechdef": mechdef})
+
+
+@mcp.tool()
+def campaign_refit_apply(plan_id: str) -> dict:
+    """Commit a previewed refit to the campaign: spends C-bills, pulls parts from storage, and queues
+    the mechlab work order exactly as confirming in the mechlab would.
+
+    ONLY call this after the player has explicitly approved this specific plan. It refuses if the
+    mech, storage, or funds changed since the preview, or if the mechlab is open.
+    """
+    return _live("/sim/refit/apply", {"plan_id": plan_id})
+
+
+@mcp.tool()
+def skirmish_custom() -> dict:
+    """The player's saved custom skirmish mechs and lances."""
     return _live("/skirmish/custom")
+
+
+@mcp.tool()
+def skirmish_pilots() -> dict:
+    """Pilots usable in skirmish lances, with skills."""
+    return _live("/skirmish/pilots")
+
+
+@mcp.tool()
+def skirmish_save_mech(mechdef: dict, name: str, replace_id: str | None = None) -> dict:
+    """Validate and save a custom skirmish mech (appears in the skirmish mechbay).
+
+    Not saved if a blocking validation error fires. Pass replace_id to overwrite one of the
+    custom mechs (ids start with mechdef_CUSTOM_). Skirmish only; never touches a campaign.
+    """
+    return _live("/skirmish/mechs", {"mechdef": mechdef, "name": name, "replace_id": replace_id})
+
+
+@mcp.tool()
+def skirmish_delete_mech(mech_id: str) -> dict:
+    """Delete a custom skirmish mech (only mechs tagged unit_custom can be deleted)."""
+    return _live(f"/skirmish/mechs?id={quote(mech_id)}", method="DELETE")
+
+
+@mcp.tool()
+def skirmish_save_lance(name: str, units: list[dict], replace_id: str | None = None) -> dict:
+    """Save a custom skirmish lance of 1-4 units: [{"mech_id": ..., "pilot_id": ...}].
+
+    mech_id is a stock mechdef id or a custom skirmish mech id; pilot ids come from skirmish_pilots.
+    """
+    return _live("/skirmish/lances", {"name": name, "units": units, "replace_id": replace_id})
+
+
+@mcp.tool()
+def skirmish_delete_lance(lance_id: str) -> dict:
+    """Delete a custom skirmish lance."""
+    return _live(f"/skirmish/lances?id={quote(lance_id)}", method="DELETE")
 
 
 def main() -> None:

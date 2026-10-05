@@ -30,6 +30,9 @@ class Bridge:
     def post(self, path: str, body: Any) -> Any:
         return self._call("POST", path, body)
 
+    def delete(self, path: str) -> Any:
+        return self._call("DELETE", path)
+
     def _call(self, method: str, path: str, body: Any = None) -> Any:
         data = json.dumps(body).encode("utf-8") if body is not None else None
         req = urllib.request.Request(self.base_url + path, data=data, method=method,
