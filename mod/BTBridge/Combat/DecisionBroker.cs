@@ -26,6 +26,9 @@ namespace BTBridge.Combat
         public float OpenedRealtime;
         public InvocationMessage Ready;
         public string Chosen;
+        public string Side;
+        /// <summary>Why this unit's standing order could not be executed, if it had one.</summary>
+        public string StandingOrderError;
     }
 
     public sealed class Candidate
@@ -97,12 +100,14 @@ namespace BTBridge.Combat
                 SuggestionInfo = Describe(unit.Combat, suggestion, LastAiOrder),
                 OpenedRealtime = Time.realtimeSinceStartup,
             };
+            d.Side = CombatControl.SideOf(team);
             if (d.Stage == "move")
             {
                 d.Candidates = ReadCandidates(unit);
             }
             Current = d;
-            Log.Info($"decision {d.Id} opened: {unit.DisplayName} round {d.Round} phase {d.Phase} stage {d.Stage}");
+            Log.Info($"decision {d.Id} opened: {d.Side} {unit.DisplayName} round {d.Round} phase {d.Phase} stage {d.Stage}");
+            StandingOrders.TryExecute(team, unit, d);
         }
 
         public static void Close(Decision d, string how)
@@ -319,6 +324,8 @@ namespace BTBridge.Combat
             {
                 open = true,
                 id = d.Id,
+                side = d.Side,
+                standing_order_error = d.StandingOrderError,
                 round = d.Round,
                 phase = d.Phase,
                 stage = d.Stage,
@@ -380,31 +387,35 @@ namespace BTBridge.Combat
             }
             var unit = combat.FindActorByGUID(d.UnitGuid) ?? throw new BridgeException(409, "unit no longer exists");
             var team = unit.team as AITeam ?? throw new BridgeException(409, "unit is not on an AI-driven team");
-            string action = order?.Value<string>("action") ?? throw new BridgeException(400, "order.action is required");
+            d.Ready = Build(team, unit, d, order);
+            d.Chosen = order.ToString(Newtonsoft.Json.Formatting.None);
+            return new { accepted = true, id, action = order.Value<string>("action") };
+        }
 
+        /// <summary>Validate one order for the unit of decision d and build its invocation.</summary>
+        public static InvocationMessage Build(AITeam team, AbstractActor unit, Decision d, JObject order)
+        {
+            var combat = unit.Combat;
+            string action = order?.Value<string>("action") ?? throw new BridgeException(400, "order.action is required");
+            InvocationMessage inv;
             switch (action)
             {
                 case "accept":
-                    d.Ready = d.Suggestion;
+                    inv = d.Suggestion;
                     break;
                 case "brace":
-                    d.Ready = new ReserveActorInvocation(unit, ReserveActorAction.DONE, combat.TurnDirector.CurrentRound);
+                    inv = new ReserveActorInvocation(unit, ReserveActorAction.DONE, combat.TurnDirector.CurrentRound);
                     break;
                 case "move":
-                    d.Ready = BuildMove(team, unit, d, order);
+                    inv = BuildMove(team, unit, d, order);
                     break;
                 case "attack":
-                    d.Ready = BuildAttack(team, unit, order);
+                    inv = BuildAttack(team, unit, order);
                     break;
                 default:
                     throw new BridgeException(400, $"unknown action '{action}' (accept | move | attack | brace)");
             }
-            if (d.Ready == null)
-            {
-                throw new BridgeException(500, "the game produced no invocation for that order");
-            }
-            d.Chosen = order.ToString(Newtonsoft.Json.Formatting.None);
-            return new { accepted = true, id, action };
+            return inv ?? throw new BridgeException(500, "the game produced no invocation for that order");
         }
 
         private static InvocationMessage BuildMove(AITeam team, AbstractActor unit, Decision d, JObject order)

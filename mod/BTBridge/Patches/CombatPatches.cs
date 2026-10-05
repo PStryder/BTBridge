@@ -13,9 +13,11 @@ namespace BTBridge.Patches
     {
         public static bool Prefix(EncounterLayerData __instance, ref Team __result)
         {
-            var mode = CombatControl.Requested;
-            CombatControl.OnPlayerTeamCreated(mode);
+            CombatControl.OnMissionTeamsCreated();
             DecisionBroker.Reset();
+            StandingOrders.Clear();
+            var mode = CombatControl.ActivePlayer;
+            Log.Info($"mission teams: player {mode}, enemy {CombatControl.ActiveEnemy}");
             if (mode == PlayerControl.Human)
             {
                 return true;
@@ -36,9 +38,37 @@ namespace BTBridge.Patches
     {
         public static void Prefix(AITeam __instance)
         {
-            if (CombatControl.ActiveMode != PlayerControl.Human && __instance.GUID == CombatControl.Player1Guid)
+            if (CombatControl.PlayerIsAiDriven && __instance.GUID == CombatControl.Player1Guid)
             {
                 DecisionBroker.EnsureCoreTree(__instance);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Which unit activates next within a phase. A human picks; for an agent-controlled team,
+    /// honour the standing orders' sequence and otherwise keep the stock AI's choice.
+    /// </summary>
+    [HarmonyPatch(typeof(AITeam), "selectCurrentUnit")]
+    public static class AgentActivationOrder
+    {
+        public static void Postfix(AITeam __instance, ref AbstractActor __result)
+        {
+            if (!CombatControl.IsAgentTeam(__instance))
+            {
+                return;
+            }
+            try
+            {
+                var planned = StandingOrders.NextInSequence(__instance.Combat, __instance.GetUnusedUnitsForCurrentPhase());
+                if (planned != null)
+                {
+                    __result = planned;
+                }
+            }
+            catch (Exception e)
+            {
+                Log.Warn("activation order override failed: " + e.Message);
             }
         }
     }
@@ -153,7 +183,7 @@ namespace BTBridge.Patches
     {
         public static bool Prefix(AbstractActor actor, ref bool __result)
         {
-            if (actor != null && CombatControl.ActiveMode != PlayerControl.Human && actor.team != null && actor.team.GUID == CombatControl.Player1Guid)
+            if (actor != null && CombatControl.PlayerIsAiDriven && actor.team != null && actor.team.GUID == CombatControl.Player1Guid)
             {
                 __result = false;
                 return false;
@@ -165,6 +195,6 @@ namespace BTBridge.Patches
     [HarmonyPatch(typeof(CombatSelectionHandler), "AutoSelectActor")]
     public static class BlockAutoSelect
     {
-        public static bool Prefix() => CombatControl.ActiveMode == PlayerControl.Human;
+        public static bool Prefix() => !CombatControl.PlayerIsAiDriven;
     }
 }

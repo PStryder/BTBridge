@@ -258,23 +258,66 @@ def skirmish_delete_lance(lance_id: str) -> dict:
 
 
 @mcp.tool()
-def combat_control(player: str | None = None, decision_timeout_seconds: float | None = None) -> dict:
-    """Get or set who commands the player's lance in combat. Takes effect from the NEXT mission start.
+def combat_control(player: str | None = None, enemy: str | None = None,
+                   decision_timeout_seconds: float | None = None) -> dict:
+    """Get or set who commands each side. Takes effect from the NEXT mission start.
 
-    player: Human (vanilla; state is still readable for advice) | Agent (you decide every
-    activation; the stock AI offers a suggestion) | BuiltinAI (stock AI plays your lance).
+    player: Human (vanilla; still readable for advice) | Agent (you command the player's lance;
+            the stock AI offers suggestions) | BuiltinAI (stock AI plays the player's lance).
+    enemy:  StockAI (vanilla) | Agent (you command every AI team hostile to the player).
     decision_timeout_seconds: 0 = wait for you forever; otherwise take the stock AI's suggestion
     after that long.
     """
-    body = {k: v for k, v in {"player": player, "decision_timeout_seconds": decision_timeout_seconds}.items() if v is not None}
+    body = {k: v for k, v in {"player": player, "enemy": enemy,
+                              "decision_timeout_seconds": decision_timeout_seconds}.items() if v is not None}
     return _live("/combat/control", body) if body else _live("/combat/control")
 
 
+def _side_query(side: str | None) -> str:
+    return f"?side={quote(side)}" if side else ""
+
+
 @mcp.tool()
-def combat_state() -> dict:
-    """The battlefield as your team sees it: round/phase, every own and allied unit, and enemies
-    at the visibility you have (blips show position only). Positions are world x/z plus hex q/r."""
-    return _live("/combat/state")
+def combat_briefing(side: str | None = None) -> dict:
+    """START EACH ROUND HERE. The whole board in one call, from `side`'s point of view only
+    (player | enemy; default: the side you command):
+    - turn_order: the initiative bar; per phase which units act and who already has
+    - own_units: full state, terrain/cover at their spot, and `vs`: per visible hostile the distance,
+      line of sight/fire, which side of the target you'd hit, and per-weapon hit chances from here
+    - contacts: hostiles at your visibility (blips = position only)
+    - lost_contacts: hostiles you saw before but can't now, at your last sighting
+    Then plan the round with combat_set_orders."""
+    return _live("/combat/briefing" + _side_query(side))
+
+
+@mcp.tool()
+def combat_state(side: str | None = None) -> dict:
+    """Compact battlefield summary from `side`'s view (player | enemy). combat_briefing is richer."""
+    return _live("/combat/state" + _side_query(side))
+
+
+@mcp.tool()
+def combat_set_orders(orders: list[dict], replace: bool = True) -> dict:
+    """Plan the round: standing orders that execute instantly when each unit's decision opens.
+
+    Each order: {"unit": guid,
+                 "sequence": n (optional; lower activates first among units in the same phase),
+                 "move": {"position": {"x","z"}, "move": "walk|sprint|backward|jump",
+                          "facing": deg | "face_unit": guid}   (optional; or {"candidate": i} is
+                          not available ahead of time),
+                 "attack": {"target": guid, "weapons": [uid, ...]}   (optional; omit weapons = all),
+                 "on_invalid": "wait" (default: decision waits for you) | "suggestion" | "brace"}
+    A unit with neither move nor attack braces. Orders are validated against the live situation
+    when the unit activates; if one no longer fits (target dead, spot taken, no line of fire) the
+    decision shows standing_order_error. Orders expire at the end of the round.
+    """
+    return _live("/combat/orders", {"orders": orders, "replace": replace})
+
+
+@mcp.tool()
+def combat_orders() -> dict:
+    """The current round's standing orders and which steps have executed."""
+    return _live("/combat/orders")
 
 
 @mcp.tool()

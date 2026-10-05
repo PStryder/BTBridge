@@ -41,7 +41,14 @@ namespace BTBridge
             // combat
             new Route { Method = "GET", Path = "/combat/control", Handler = r => ControlView() },
             new Route { Method = "POST", Path = "/combat/control", Handler = SetControl },
-            new Route { Method = "GET", Path = "/combat/state", Handler = r => CombatSerializer.State(RequireCombat(), RequireCombat().LocalPlayerTeam) },
+            new Route { Method = "GET", Path = "/combat/state", Handler = r => CombatSerializer.State(RequireCombat(), Viewer(r)) },
+            new Route { Method = "GET", Path = "/combat/briefing", Handler = r => Briefing.Build(RequireCombat(), Viewer(r), Side(r)) },
+            new Route { Method = "GET", Path = "/combat/orders", Handler = r => StandingOrders.View(RequireCombat()) },
+            new Route { Method = "POST", Path = "/combat/orders", Handler = r =>
+                {
+                    var body = Body(r);
+                    return StandingOrders.Set(RequireCombat(), body["orders"] as JArray, body.Value<bool?>("replace") ?? true);
+                } },
             new Route { Method = "GET", Path = "/combat/decision", Handler = DecisionView },
             new Route { Method = "POST", Path = "/combat/decision", Handler = r =>
                 {
@@ -59,36 +66,66 @@ namespace BTBridge
         private static CombatGameState RequireCombat() =>
             Game?.Combat ?? throw new BridgeException(409, "no combat in progress");
 
+        private static string Side(BridgeRequest r)
+        {
+            string side = r.QueryOr("side", null);
+            if (side == null)
+            {
+                // Default to the side the agent commands (the open decision's, else enemy if only it is agent-driven).
+                side = DecisionBroker.Current?.Side
+                    ?? (CombatControl.ActiveEnemy == EnemyControl.Agent && CombatControl.ActivePlayer != PlayerControl.Agent ? "enemy" : "player");
+            }
+            if (side != "player" && side != "enemy")
+            {
+                throw new BridgeException(400, "side must be player or enemy");
+            }
+            return side;
+        }
+
+        private static Team Viewer(BridgeRequest r) =>
+            CombatControl.ViewerFor(RequireCombat(), Side(r)) ?? throw new BridgeException(409, "no team for that side");
+
         private static object ControlView() => new
         {
-            next_mission = CombatControl.Requested.ToString(),
-            current_mission = Game?.Combat != null ? CombatControl.ActiveMode.ToString() : null,
+            next_mission = new { player = CombatControl.RequestedPlayer.ToString(), enemy = CombatControl.RequestedEnemy.ToString() },
+            current_mission = Game?.Combat != null
+                ? new { player = CombatControl.ActivePlayer.ToString(), enemy = CombatControl.ActiveEnemy.ToString() }
+                : null,
             decision_timeout_seconds = CombatControl.DecisionTimeoutSeconds,
-            modes = new[] { "Human", "Agent", "BuiltinAI" },
-            note = "the mode is applied when a mission builds its teams, so changes take effect from the next mission",
+            player_modes = new[] { "Human", "Agent", "BuiltinAI" },
+            enemy_modes = new[] { "StockAI", "Agent" },
+            note = "modes are applied when a mission builds its teams, so changes take effect from the next mission",
         };
+
+        private static T ParseEnum<T>(string value, string what)
+        {
+            try
+            {
+                return (T)System.Enum.Parse(typeof(T), value, ignoreCase: true);
+            }
+            catch (System.ArgumentException)
+            {
+                throw new BridgeException(400, $"unknown {what} mode '{value}' ({string.Join(" | ", System.Enum.GetNames(typeof(T)))})");
+            }
+        }
 
         private static object SetControl(BridgeRequest r)
         {
             var body = Body(r);
-            string mode = body.Value<string>("player");
-            if (mode != null)
+            if (body.Value<string>("player") is string player)
             {
-                try
-                {
-                    CombatControl.Requested = (PlayerControl)System.Enum.Parse(typeof(PlayerControl), mode, ignoreCase: true);
-                }
-                catch (System.ArgumentException)
-                {
-                    throw new BridgeException(400, $"unknown mode '{mode}' (Human | Agent | BuiltinAI)");
-                }
+                CombatControl.RequestedPlayer = ParseEnum<PlayerControl>(player, "player");
+            }
+            if (body.Value<string>("enemy") is string enemy)
+            {
+                CombatControl.RequestedEnemy = ParseEnum<EnemyControl>(enemy, "enemy");
             }
             float? timeout = body.Value<float?>("decision_timeout_seconds");
             if (timeout.HasValue)
             {
                 CombatControl.DecisionTimeoutSeconds = System.Math.Max(0f, timeout.Value);
             }
-            Log.Info($"combat control: next mission {CombatControl.Requested}, timeout {CombatControl.DecisionTimeoutSeconds}s");
+            Log.Info($"combat control: next mission player {CombatControl.RequestedPlayer}, enemy {CombatControl.RequestedEnemy}, timeout {CombatControl.DecisionTimeoutSeconds}s");
             return ControlView();
         }
 
@@ -101,7 +138,7 @@ namespace BTBridge
                 return new
                 {
                     open = false,
-                    agent_controls_player = CombatControl.IsAgentTeam(combat.LocalPlayerTeam),
+                    agent_commands = new { player = CombatControl.ActivePlayer == PlayerControl.Agent, enemy = CombatControl.ActiveEnemy == EnemyControl.Agent },
                     active_team = (combat.TurnDirector.ActiveTurnActor as Team)?.DisplayName,
                     round = combat.TurnDirector.CurrentRound,
                     phase = combat.TurnDirector.CurrentPhase,

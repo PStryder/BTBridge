@@ -15,6 +15,7 @@ namespace BTBridge.Patches
             try
             {
                 MainThread.Pump();
+                Combat.Briefing.Tick();
             }
             catch (Exception e)
             {
