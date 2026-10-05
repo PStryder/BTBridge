@@ -71,6 +71,9 @@ The human UI publishes the same invocation types (`SelectionState.PublishInvocat
 
 Validation: **`MechValidationRules.ValidateMechDef(MechValidationLevel, DataManager, MechDef, WorkOrderEntry_MechLab)`** is static and needs no UI. It returns `Dictionary<MechValidationType, List<Text>>`.
 
+- **Don't use `MechValidationLevel.MechLab` for builds that didn't come through the UI.** It skips inventory slots, hardpoints, allowed locations and the one-EW/one-prototype limits, because the mechlab's drag-and-drop makes those placements impossible. Use `Full`. Confirmed in-game: an AC/20 in the head passes `MechLab` apart from tonnage and ammo, and fails `Full` on slots and hardpoints.
+- The mechlab won't save a build that has `ValidManifest`, `Overweight`, `WeaponsMissing`, `InvalidInventorySlots`, `InvalidHardpoints`, `InvalidJumpjets` or `StructureDestroyed` errors. `Underweight`, `AmmoMissing`, `AmmoUnneeded` and `StructureDamaged` are only warnings.
+
 Stats bars: `MechStatisticsRules.Calculate{Tonnage,CBillValue,Firepower,HeatEfficiency,Durability,Movement,Range,Melee}Stat(mechDef, ref cur, ref max)`. `CalculateTonnage` reports max = 100 for the UI bar, so take the real cap from `Chassis.Tonnage`.
 
 Tonnage formula: `Chassis.InitialTonnage + sum(assigned armor) / (ARMOR_PER_TENTH_TON * 10) + sum(component tonnage)`, with `ARMOR_PER_TENTH_TON = 8` (80 armor per ton).
@@ -88,6 +91,14 @@ On confirm, `MechBayPanel.OnMechLabComplete(entries, nickname, refund)`:
 - `Sim.UpdateMechLabWorkQueue(passDay: false)`.
 - `TriggerIronManSave()` runs in `MechLabPanel.DoConfirmRefit`.
 
+Gotchas, all confirmed in-game:
+- **Components on starting mechs, and on newly acquired ones, have no `SimGameUID`.** `MechBayPanel` assigns UIDs just before opening the mechlab. If a removal or move order is built without one, `CreateComponentInstallWorkOrder` makes up a fresh UID that matches nothing on the mech. The game charges for the order and then logs `ML_InstallComponent ... had an invalid mechComponentID, skipping` at completion. Fix: assign any missing UIDs first.
+- A move is a removal (`newLocation = None`) followed by an install of the **same UID**. `ML_InstallComponent` keeps the removed part in `WorkOrderComponents` when a later sub-entry references it, so the part never passes through storage.
+- Copying with `new MechComponentRef(other)` keeps the UID but **drops `Def`**. `CreateComponentInstallWorkOrder` reads `.Def`, so restore it with `SetComponentDef`.
+- Removals and armor changes cost 0 tech points in vanilla (`UninstallTechPoints`, `ArmorInstall*` = 0), so they complete as soon as they're queued. Removed parts show up in storage right away, and only the installs wait. Removals still cost the install fee in C-bills.
+- Cancelling a queued order in the Argo's work queue refunds it in full (`CancelWorkOrder`), including orders created over the bridge.
+- A weapon's hardpoint slot is the number of weapons already in that location (`MechLabLocationWidget`).
+
 ## Skirmish custom mechs and lances (writes)
 
 `ActiveOrDefaultSettings.CloudSettings.CustomUnitsAndLances` is a `SkirmishUnitsAndLances` object with:
@@ -96,6 +107,10 @@ On confirm, `MechBayPanel.OnMechLabComplete(entries, nickname, refund)`:
 - `AddOrUpdateLanceDef`, `RemoveLanceDef`
 
 Persist changes with `ActiveOrDefaultSettings.SaveUserSettings()`. Custom mechs carry the `unit_custom` tag. See `SkirmishMechBayPanel.OnMechLabConfirm`, `SaveMech` and `SaveLance`.
+
+- `GetMechDef(id)` throws a NullReferenceException when the id is missing. Check `ContainsMechDef(id)` first.
+- Skirmish pilots (tag `pilot_release_skirmish`) are only loaded when the skirmish mechbay opens. To load them without the UI: `dm.CreateLoadRequest(cb, true)`, then `AddAllOfTypeBlindLoadRequest(BattleTechResourceType.PilotDef, true)`, then `ProcessRequests()`. The load is asynchronous.
+- A lance is `new LanceDef(description(cost = sum of mech Description.Cost), 0, TagSet("lance_type_custom", "lance_release", "lance_bracket_skirmish", GetLanceBracketTag(value)), units)`.
 
 ## Data on disk
 
