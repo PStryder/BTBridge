@@ -60,7 +60,8 @@ namespace BTBridge.Sim
             health = p.Health,
             injuries = p.Injuries,
             can_pilot = p.CanPilot,
-            abilities = p.Abilities?.Select(a => a.Def?.Description?.Name).ToList(),
+            // Passive stat abilities often have an empty display name; fall back to the id.
+            abilities = p.Abilities?.Select(a => string.IsNullOrEmpty(a.Def?.Description?.Name) ? a.Def?.Description?.Id : a.Def.Description.Name).ToList(),
             salary = p == sim.Commander ? 0 : sim.GetMechWarriorValue(p.pilotDef),
         };
 
@@ -106,7 +107,7 @@ namespace BTBridge.Sim
                         if (sim.CanPilotTakeAbility(def, ability))
                         {
                             def.abilityDefNames.Add(ability.Description.Id);
-                            gained.Add(new { name = ability.Description.Name, primary = ability.IsPrimaryAbility, at_level = pip + 1 });
+                            gained.Add(new { name = string.IsNullOrEmpty(ability.Description.Name) ? ability.Description.Id : ability.Description.Name, primary = ability.IsPrimaryAbility, at_level = pip + 1 });
                         }
                     }
                 }

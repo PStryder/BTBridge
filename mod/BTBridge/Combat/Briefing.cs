@@ -156,6 +156,9 @@ namespace BTBridge.Combat
                 in_combat = td.IsInterleaved,
                 active_team = (td.ActiveTurnActor as Team)?.DisplayName,
                 mission_over = td.IsMissionOver,
+                // The mission's goals: the player lance gets no objective guidance from the encounter.
+                objectives = side == "player" ? Objectives.Live(combat) : null,
+                mission = side == "player" ? Objectives.Briefing(combat.ActiveContract) : null,
                 turn_order = TurnOrder(combat, viewer, own, visible),
                 own_units = ownUnits,
                 contacts,

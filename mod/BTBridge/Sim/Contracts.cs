@@ -88,6 +88,8 @@ namespace BTBridge.Sim
                 flashpoint = c.IsFlashpointContract,
                 expires_in_days = c.UsingExpiration ? (int?)c.ExpirationTime : null,
                 meets_reputation = sim.ContractUserMeetsReputation(c),
+                description = c.ShortDescription,
+                objectives = o?.objectiveList?.Select(x => new { title = x.title, primary = x.isPrimary }).ToList(),
             };
         }
 
@@ -308,11 +310,39 @@ namespace BTBridge.Sim
             return new { withdrawing = true, good_faith_effort = goodFaith };
         }
 
+        private static Briefing BriefingScreen()
+        {
+            var b = UnityEngine.Object.FindObjectOfType<Briefing>();
+            return b != null && b.Visible ? b : null;
+        }
+
+        /// <summary>
+        /// The pre-mission briefing's "Begin Mission" button (found in the first career test). The game
+        /// waits on it after loading; BeginPlaying does nothing until loading is complete.
+        /// </summary>
+        public static object BeginMission()
+        {
+            var b = BriefingScreen() ?? throw new BridgeException(409, "the mission briefing is not showing");
+            string state = Reflect.Get(b, "loadingState")?.ToString();
+            if (state != "Complete")
+            {
+                throw new BridgeException(409, $"the mission is still loading ({state}); retry shortly");
+            }
+            b.BeginPlaying();
+            Log.Info("mission begun from the briefing screen");
+            return new { begun = true };
+        }
+
         public static object MissionEnd(CombatGameState combat)
         {
             var screen = UnityEngine.Object.FindObjectOfType<CombatHUDMissionEnd>();
+            var briefing = BriefingScreen();
             return new
             {
+                briefing_waiting = briefing != null,
+                briefing_ready = briefing != null && Reflect.Get(briefing, "loadingState")?.ToString() == "Complete",
+                mission = BTBridge.Combat.Objectives.Briefing(combat.ActiveContract),
+                objectives = BTBridge.Combat.Objectives.Live(combat),
                 mission_over = combat.TurnDirector.IsMissionOver,
                 result = combat.TurnDirector.IsMissionOver ? combat.TurnDirector.TheMissionResult.ToString() : null,
                 end_screen_visible = screen != null && screen.Visible,

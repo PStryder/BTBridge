@@ -30,6 +30,9 @@ namespace BTBridge.Sim
         {
             "PauseNotification", "GenericPopup", "SGEventPanel", "SGCaptainsQuartersStatusScreen",
             "MechPlacementPopup", "RewardsPopup", "SG_FlashpointInfoPopup", "SGFlashpointEndScreen",
+            // Found in the first career test: modules some interrupts render with.
+            "HeavyMetalContentReviewPopup", "MercNetUpdatePopup", "ImageAndTextInfoPopup",
+            "SG_CareerModeEndScoreDisplay", "SGCampaignOutcomeScreen",
         };
 
         public static SimGameInterruptManager.Entry CurrentEntry(SimGameState sim) =>
@@ -59,6 +62,13 @@ namespace BTBridge.Sim
 
         private static T Visible<T>() where T : UIModule => VisiblePopups().OfType<T>().FirstOrDefault();
 
+        /// <summary>
+        /// SimGameState.TimeMoving dereferences RoomManager, which is null while a mission is
+        /// loaded (the sim UI is detached). Found in the first career test (/sim/status NRE on launch).
+        /// </summary>
+        private static bool SafeTimeMoving(SimGameState sim) =>
+            sim.RoomManager != null && UnityGameInstance.BattleTechGame?.Combat == null && sim.TimeMoving;
+
         public static SimFacts Facts(SimGameState sim)
         {
             var game = UnityGameInstance.BattleTechGame;
@@ -70,12 +80,12 @@ namespace BTBridge.Sim
                 InCombat = game?.Combat != null,
                 ContractCompleting = sim.CompletedContract != null,
                 MilestoneContractPending = sim.PendingMilestoneContract != null,
-                InterruptOpen = sim.InterruptQueue.IsOpen,
-                InterruptQueued = sim.InterruptQueue.HasQueue,
+                InterruptOpen = sim.InterruptQueue != null && sim.InterruptQueue.IsOpen,
+                InterruptQueued = sim.InterruptQueue != null && sim.InterruptQueue.HasQueue,
                 ConversationOn = sim.ConversationManager != null && sim.ConversationManager.IsOn,
                 VideoPlaying = sim.VideoPlayerActive,
                 InTransition = sim.TravelManager != null && sim.TravelManager.InTransition,
-                TimeMoving = sim.TimeMoving,
+                TimeMoving = SafeTimeMoving(sim),
                 MechLabOpen = sim.RoomManager?.MechBayRoom != null && sim.RoomManager.MechBayRoom.mechLabOpen,
                 LanceConfigOpen = sim.RoomManager?.CmdCenterRoom != null && sim.RoomManager.CmdCenterRoom.lanceConfigOpen,
                 VisiblePopups = VisiblePopups().Count,
@@ -94,7 +104,7 @@ namespace BTBridge.Sim
                 operator_messages = Ui.ChatOverlay.UnreadForAgent(),
                 room = sim.CurRoomState.ToString(),
                 travel_state = sim.TravelManager?.TravelState.ToString(),
-                time_moving = sim.TimeMoving,
+                time_moving = SafeTimeMoving(sim),
                 date = sim.CurrentDate.ToString("yyyy-MM-dd"),
                 days_passed = sim.DaysPassed,
                 system = sim.CurSystem?.Name,
@@ -194,6 +204,15 @@ namespace BTBridge.Sim
                 }
                 case SimGameInterruptManager.InterruptType.FlashpointEnteredSystemNotification:
                     return new { open = true, kind = cur.type.ToString(), answer = new[] { "{\"accept\": true | false}" } };
+                case SimGameInterruptManager.InterruptType.HeavyMetalLootPopup:
+                    return new
+                    {
+                        open = true,
+                        kind = cur.type.ToString(),
+                        title = "Heavy Metal starter content",
+                        note = "accepting adds the Heavy Metal career starter item collection (a rewards popup follows)",
+                        answer = new[] { "{\"accept\": true | false}" },
+                    };
                 default:
                     return new
                     {
@@ -425,6 +444,15 @@ namespace BTBridge.Sim
                         ?? throw new BridgeException(409, "flashpoint popup not on screen yet; retry");
                     bool accept = answer.Value<bool?>("accept") ?? true;
                     Reflect.Call(popup, accept ? "OnConfirm" : "OnCancel");
+                    return Done(cur, accept ? "accepted" : "declined");
+                }
+                case SimGameInterruptManager.InterruptType.HeavyMetalLootPopup:
+                {
+                    var popup = VisiblePopups().FirstOrDefault(m => m.GetType().Name == "HeavyMetalContentReviewPopup")
+                        ?? throw new BridgeException(409, "Heavy Metal popup not on screen yet; retry");
+                    bool accept = answer.Value<bool?>("accept") ?? true;
+                    // Close(accepted) runs the accept/decline callback (accept queues the rewards popup).
+                    Reflect.Call(popup, "Close", accept);
                     return Done(cur, accept ? "accepted" : "declined");
                 }
                 default:

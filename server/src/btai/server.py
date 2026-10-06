@@ -375,6 +375,32 @@ def mission_status() -> dict:
 
 
 @mcp.tool()
+def mission_begin() -> dict:
+    """Press "Begin Mission" on the pre-mission briefing once the mission has loaded (mission_status
+    shows briefing_waiting / briefing_ready). Combat decisions start after this."""
+    return _live("/combat/begin", {})
+
+
+@mcp.tool()
+def combat_dialog() -> dict:
+    """The in-mission story dialogue line on screen (speaker, text), if one is blocking the mission."""
+    return _live("/combat/dialog")
+
+
+@mcp.tool()
+def dialog_transcript(limit: int = 50) -> list | dict:
+    """Every dialogue line shown recently (mission chatter and campaign conversations), oldest
+    first, with speaker and where it appeared. Lines are kept even if they were clicked through."""
+    return _live(f"/dialog/transcript?limit={limit}")
+
+
+@mcp.tool()
+def combat_dialog_continue() -> dict:
+    """Advance the in-mission dialogue one line (the Continue button). Repeat until it closes."""
+    return _live("/combat/dialog/continue", {})
+
+
+@mcp.tool()
 def mission_withdraw() -> dict:
     """Withdraw (retreat) from the current mission. Not allowed on priority/story missions."""
     return _live("/combat/withdraw", {})
@@ -594,7 +620,8 @@ def combat_wait_for_decision(max_wait_seconds: float = 60) -> dict:
     last: Any = None
     while time.monotonic() < deadline:
         last = _live("/combat/decision")
-        if isinstance(last, dict) and (last.get("open") or "error" in last or last.get("operator_messages")):
+        if isinstance(last, dict) and (last.get("open") or "error" in last or last.get("operator_messages")
+                                       or last.get("dialog_waiting") or last.get("briefing_waiting")):
             return last
         time.sleep(0.5)
     return {"open": False, "timed_out": True, "last": last}
