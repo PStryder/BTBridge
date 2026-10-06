@@ -208,7 +208,8 @@ In-game (in the combined test session, once built):
 
 2. **Decided (2026-10-06):** the campaign marker is **on by default**: company tag `btbridge_cheats_used` plus the `BTBRIDGE_CheatOps` counter, added on the first executed cheat.
 
-## Open questions for the operator
-2. Should the campaign marker (tag + counter) be on by default (recommended), or be a setting?
-3. Ironman: refuse outright, or allow behind the restart-time setting?
-4. For build speed: is option A (finish now) enough for v1, or do you also want B (a session multiplier)?
+3. **Decided (2026-10-06):** **Ironman** is refused by default. It is allowed only with the restart-time setting `AllowCheatsInIronman`. When allowed, previews warn that the change is permanent, and execute calls `TriggerIronManSave()`.
+4. **Decided (2026-10-06):** **build speed in v1 is option A only**: finish now, for mechlab work, the Argo upgrade and the medbay.
+   - Option B (session multiplier) and option C (permanent stat deltas) stay in the "later, opt-in" stage.
+
+All design questions are settled; the layer is ready to build when the operator says so.
