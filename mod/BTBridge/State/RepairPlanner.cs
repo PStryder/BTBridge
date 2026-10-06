@@ -86,8 +86,10 @@ namespace BTBridge.State
                 structure,
                 components,
                 destroyed_components = destroyed,
+                // Verified in the career test: the repaired Centurion came back without its LRM10, as
+                // the game's own repair popup warns. Replacing them is a refit from storage.
                 destroyed_note = destroyed.Count > 0
-                    ? "the game's repair re-queues destroyed components as installs; to replace them with different parts, refit instead"
+                    ? "destroyed components are LOST: the repair removes them and does not replace them. Refit afterwards with parts from storage (buy them first if needed)"
                     : null,
                 cbills = entries.Count > 0 ? cbills : 0,
                 days = entries.Count > 0 ? days : 0,

@@ -219,7 +219,8 @@ def campaign_refit_apply(plan_id: str) -> dict:
 def campaign_repair(bay: int, confirm: bool = False) -> dict:
     """Repair battle damage on the mech in a bay, as the mech bay's Repair button does: internal
     structure and damaged components (armor comes back with the structure). confirm=False previews
-    cost and days; confirm=True queues the work order and spends the C-bills. Refits don't repair."""
+    cost and days; confirm=True queues the work order and spends the C-bills. Refits don't repair.
+    Destroyed components are scrapped, not replaced: refit afterwards from storage."""
     return _live("/sim/repair", {"mech": str(bay), "confirm": confirm})
 
 
