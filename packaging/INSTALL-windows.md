@@ -1,6 +1,6 @@
 # BTBridge v0.1 (alpha): Windows install
 
-BTBridge lets an AI agent read and play HBS BattleTech through the game's own logic. This zip is the game mod only. To connect an agent you also need the MCP server from the repository: https://github.com/PStryder/battletech-ai
+BTBridge lets an AI agent read and play HBS BattleTech through the game's own logic. This zip is the game mod only. To connect an agent you also need the MCP server from the repository: https://github.com/PStryder/BTBridge
 
 **Alpha software.** Built for **vanilla BattleTech 1.9.1 + ModTek**. It is not compatible with RogueTech, BTA or other overhaul packs: use a clean install. Back up your saves folder before trying any mod.
 
@@ -38,4 +38,4 @@ Send these files (they contain no personal data beyond your Windows user name in
 
 To uninstall, delete `Mods\BTBridge`. To remove ModTek too, delete `winhttp.dll`, `doorstop_config.ini` and `Mods\ModTek`.
 
-Issues: https://github.com/PStryder/battletech-ai/issues
+Issues: https://github.com/PStryder/BTBridge/issues

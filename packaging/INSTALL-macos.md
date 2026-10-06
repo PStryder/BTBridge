@@ -1,6 +1,6 @@
 # BTBridge v0.1 (alpha): macOS install
 
-BTBridge lets an AI agent read and play HBS BattleTech through the game's own logic. This zip is the game mod only. To connect an agent you also need the MCP server from the repository: https://github.com/PStryder/battletech-ai
+BTBridge lets an AI agent read and play HBS BattleTech through the game's own logic. This zip is the game mod only. To connect an agent you also need the MCP server from the repository: https://github.com/PStryder/BTBridge
 
 **Alpha software, and macOS is untested so far.** That's why this build exists: if you can try it, the logs below are exactly what's needed, whether it works or not. Built for **vanilla BattleTech 1.9.1 + ModTek**; not compatible with RogueTech, BTA or other overhaul packs. Back up your saves before trying any mod. On Apple Silicon the game runs under Rosetta; please say which Mac you have when reporting.
 
@@ -40,4 +40,4 @@ Whether it worked or not, send:
 
 To uninstall, delete `Mods/BTBridge`.
 
-Issues: https://github.com/PStryder/battletech-ai/issues
+Issues: https://github.com/PStryder/BTBridge/issues

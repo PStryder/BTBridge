@@ -1,6 +1,6 @@
 # Reddit drafts (not posted)
 
-Drafts for announcing battletech-ai. Nothing here has been posted. Fill the `[brackets]` and run the checklist first.
+Drafts for announcing BTBridge. Nothing here has been posted. Fill the `[brackets]` and run the checklist first.
 
 ## Before posting
 
@@ -19,7 +19,7 @@ Drafts for announcing battletech-ai. Nothing here has been posted. Fill the `[br
 
 **Body:**
 
-I've been building a mod that lets an AI agent play HBS BattleTech through the game's own logic rather than by clicking the screen. It's called battletech-ai, and it's at the "works on my test career" stage, so treat this as a show-and-tell, not a release.
+I've been building a mod that lets an AI agent play HBS BattleTech through the game's own logic rather than by clicking the screen. It's called BTBridge, and it's at the "works on my test career" stage, so treat this as a show-and-tell, not a release.
 
 What it can do right now, verified in-game:
 
@@ -40,11 +40,11 @@ Things I learned the hard way that might interest modders:
 
 What it doesn't do (yet):
 - **Vanilla 1.9.1 + ModTek only.** RogueTech, BTA and anything using MechEngineer/CleverGirl change the same systems; not supported.
-- It's an alpha: prebuilt Windows and macOS zips are on the [v0.1-alpha release](https://github.com/PStryder/battletech-ai/releases/tag/v0.1-alpha), and macOS is untested.
+- It's an alpha: prebuilt Windows and macOS zips are on the [v0.1-alpha release](https://github.com/PStryder/BTBridge/releases/tag/v0.1-alpha), and macOS is untested.
 - The scripted driver I used for testing won every mission but **got two of my pilots killed** holding a base against two assault 'Mechs. The real thing is the agent thinking through each turn, which is slower (10–30 s per unit).
 - Flashpoints are wired up but I haven't played one through.
 
-Repo: https://github.com/PStryder/battletech-ai. Happy to answer questions about the hooks; the docs folder has notes on how the game's campaign and combat code fit together.
+Repo: https://github.com/PStryder/BTBridge. Happy to answer questions about the hooks; the docs folder has notes on how the game's campaign and combat code fit together.
 
 ---
 
@@ -54,7 +54,7 @@ Repo: https://github.com/PStryder/battletech-ai. Happy to answer questions about
 
 **Body:**
 
-I've been working with Claude Code on battletech-ai: a C# mod for HBS BattleTech (2018) plus a Python MCP server (76 tools), so an agent can play the game through its real logic instead of screenshots and mouse clicks.
+I've been working with Claude Code on BTBridge: a C# mod for HBS BattleTech (2018) plus a Python MCP server (76 tools), so an agent can play the game through its real logic instead of screenshots and mouse clicks.
 
 The shape of it:
 - **The mod** (Harmony patches, an HTTP bridge on localhost) reads game state and runs actions on the main thread.
@@ -74,7 +74,7 @@ What surprised me: most of the bugs weren't in the hooks but in *reporting*. The
 
 [OPFOR TEST: one or two sentences.]
 
-Repo: https://github.com/PStryder/battletech-ai. Vanilla BattleTech 1.9.1 + ModTek. Prebuilt v0.1 alpha zips for Windows and macOS are on the releases page.
+Repo: https://github.com/PStryder/BTBridge. Vanilla BattleTech 1.9.1 + ModTek. Prebuilt v0.1 alpha zips for Windows and macOS are on the releases page.
 
 ---
 
@@ -91,10 +91,10 @@ I've been building **BTBridge**, a mod that lets an AI agent play HBS BattleTech
 It works on my Windows machine. Now I need other people's setups, and **especially macOS players, because I don't have a Mac**: the Mac build has never been run.
 
 **Downloads (v0.1 alpha):**
-- Windows: https://github.com/PStryder/battletech-ai/releases/download/v0.1-alpha/BTBridge-v0.1-alpha-windows.zip
-- macOS: https://github.com/PStryder/battletech-ai/releases/download/v0.1-alpha/BTBridge-v0.1-alpha-macos.zip
-- Release page (notes and checksums): https://github.com/PStryder/battletech-ai/releases/tag/v0.1-alpha
-- The project: https://github.com/PStryder/battletech-ai
+- Windows: https://github.com/PStryder/BTBridge/releases/download/v0.1-alpha/BTBridge-v0.1-alpha-windows.zip
+- macOS: https://github.com/PStryder/BTBridge/releases/download/v0.1-alpha/BTBridge-v0.1-alpha-macos.zip
+- Release page (notes and checksums): https://github.com/PStryder/BTBridge/releases/tag/v0.1-alpha
+- The project: https://github.com/PStryder/BTBridge
 
 **You need:** BattleTech **1.9.1** on Steam, **vanilla** (it won't work alongside RogueTech, BTA or other overhaul packs, so use a clean install), and **ModTek v4.5.1**: https://github.com/BattletechModders/ModTek/releases. Back up your saves folder first, as with any mod.
 

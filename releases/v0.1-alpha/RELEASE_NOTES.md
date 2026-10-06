@@ -1,8 +1,8 @@
-BTBridge **v0.1 alpha**: the first packaged build of the battletech-ai game mod.
+**v0.1 alpha**: the first packaged build of the BTBridge game mod.
 
 It lets an AI agent work with HBS BattleTech (2018) through the game's own logic: read your company and the live mechlab, refit and repair, run the campaign (contracts, missions, after-action and salvage, travel, events, pilots, store, Argo), command a lance in combat on your side or **as the enemy against you**, and talk with you through an in-game chat overlay.
 
-**These zips are the game mod only.** To connect an agent (Claude or any MCP client), clone the repository and run the MCP server in `server/`: see the [README](https://github.com/PStryder/battletech-ai#readme).
+**These zips are the game mod only.** To connect an agent (Claude or any MCP client), clone the repository and run the MCP server in `server/`: see the [README](https://github.com/PStryder/BTBridge#readme).
 
 ## Downloads
 
@@ -30,4 +30,4 @@ Both contain the same `BTBridge.dll`; only the install guide differs. Checksums 
 - Combat control modes reset when the game restarts.
 - The agent plays at reasoning speed (about 10–30 s per unit).
 
-Report problems with logs at https://github.com/PStryder/battletech-ai/issues
+Report problems with logs at https://github.com/PStryder/BTBridge/issues

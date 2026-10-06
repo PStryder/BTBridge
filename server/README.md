@@ -1,6 +1,6 @@
 # btai
 
-The MCP servers for battletech-ai. The [repository README](../README.md) covers the mod, the bridge API, and what's verified in-game.
+The MCP servers for BTBridge. The [repository README](../README.md) covers the mod, the bridge API, and what's verified in-game.
 
 ## Servers
 
