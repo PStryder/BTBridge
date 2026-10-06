@@ -80,6 +80,12 @@ namespace BTBridge
 
             // campaign: status, interrupts, time
             new Route { Method = "GET", Path = "/sim/status", Handler = r => Interrupts.Status(RequireSim()) },
+            new Route { Method = "GET", Path = "/sim/video", Handler = r => Story.VideoStatus() },
+            new Route { Method = "POST", Path = "/sim/video/skip", Handler = r => Story.Skip() },
+            new Route { Method = "GET", Path = "/story/cinematics", Handler = r => Story.CinematicList(r.QueryOr("spoilers", "false") == "true") },
+            new Route { Method = "GET", Path = "/story/cinematic", Handler = r => Story.CinematicText(r.QueryOr("video", ""), r.QueryOr("spoilers", "false") == "true") },
+            new Route { Method = "GET", Path = "/story/conversations", Handler = r => Story.ConversationList(RequireSim(), r.QueryOr("spoilers", "false") == "true") },
+            new Route { Method = "GET", Path = "/story/conversation", Handler = r => Story.ConversationScript(RequireSim(), r.QueryOr("id", ""), r.QueryOr("spoilers", "false") == "true") },
             new Route { Method = "GET", Path = "/sim/interrupt", Handler = r => Interrupts.Describe(RequireSim()) },
             new Route { Method = "POST", Path = "/sim/interrupt", Handler = r => Interrupts.Resolve(RequireSim(), Body(r)) },
             new Route { Method = "POST", Path = "/sim/time", Handler = r =>

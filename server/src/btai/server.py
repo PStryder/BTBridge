@@ -401,6 +401,54 @@ def dialog_transcript(limit: int = 50, repeats: bool = False, since_id: int = 0)
 
 
 @mcp.tool()
+def video_status() -> dict:
+    """Whether a story cinematic is playing (it blocks the campaign) and which one."""
+    return _live("/sim/video")
+
+
+@mcp.tool()
+def video_skip() -> dict:
+    """Skip the playing cinematic, exactly as Escape does; the story continues normally.
+    Its subtitles stay readable with story_cinematic."""
+    return _live("/sim/video/skip", {})
+
+
+def _spoil(path: str, spoilers: bool, **q) -> str:
+    parts = [f"{k}={quote(str(v))}" for k, v in q.items()]
+    if spoilers:
+        parts.append("spoilers=true")
+    return path + ("?" + "&".join(parts) if parts else "")
+
+
+@mcp.tool()
+def story_cinematics(spoilers: bool = False) -> dict:
+    """Story cinematics in story order, with whether each has subtitles. Only ones already seen in
+    this install unless spoilers=True. Large text is fetched separately with story_cinematic."""
+    return _live(_spoil("/story/cinematics", spoilers))
+
+
+@mcp.tool()
+def story_cinematic(video: str, spoilers: bool = False) -> dict:
+    """The full subtitle text of one cinematic (e.g. "1B-betrayal"), with timings. The game's
+    subtitle files do not name speakers. Refused for unseen cinematics unless spoilers=True."""
+    return _live(_spoil("/story/cinematic", spoilers, video=video))
+
+
+@mcp.tool()
+def story_conversations(spoilers: bool = False) -> dict:
+    """The campaign's scripted conversations (Darius, Kamea, Yang...) by id and name. Only ones
+    already played in this install unless spoilers=True."""
+    return _live(_spoil("/story/conversations", spoilers))
+
+
+@mcp.tool()
+def story_conversation(conversation_id: str, spoilers: bool = False) -> dict:
+    """One scripted conversation in full: every node with its speaker and text, and the responses
+    with the node each leads to. A big chunk; ask for it only when the context is needed."""
+    return _live(_spoil("/story/conversation", spoilers, id=conversation_id))
+
+
+@mcp.tool()
 def combat_dialog_continue() -> dict:
     """Advance the in-mission dialogue one line (the Continue button). Repeat until it closes."""
     return _live("/combat/dialog/continue", {})
