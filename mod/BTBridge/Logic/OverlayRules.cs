@@ -13,6 +13,8 @@ namespace BTBridge.Logic
         Decision,
         Warning,
         System,
+        /// <summary>The operator's own typed messages (echo); not toggleable, always shown.</summary>
+        Operator,
     }
 
     public sealed class OverlayMessage
@@ -68,6 +70,29 @@ namespace BTBridge.Logic
             return clean;
         }
 
+        /// <summary>Operator input: one line, control characters removed, capped at Inbox.MaxChars.</summary>
+        public static string CleanForInbox(string text)
+        {
+            var sb = new StringBuilder();
+            foreach (char c in text ?? "")
+            {
+                if (!char.IsControl(c))
+                {
+                    sb.Append(c);
+                }
+                else if (c == '\t' || c == '\n' || c == '\r')
+                {
+                    sb.Append(' ');
+                }
+            }
+            string clean = sb.ToString().Trim();
+            if (clean.Length == 0)
+            {
+                throw new RuleException("message is empty");
+            }
+            return clean.Length > Inbox.MaxChars ? clean.Substring(0, Inbox.MaxChars) : clean;
+        }
+
         public static Channel ParseChannel(string name)
         {
             switch ((name ?? "").Trim().ToLowerInvariant())
@@ -79,6 +104,55 @@ namespace BTBridge.Logic
                 default: throw new RuleException("type must be commentary | decision | warning | system");
             }
         }
+    }
+
+    public sealed class InboxMessage
+    {
+        public int Id;
+        public string Text;
+        public DateTime Sent;
+        public bool Acked;
+    }
+
+    /// <summary>
+    /// Operator -> agent messages typed in the in-game box. Only the box writes here (there is no
+    /// route to inject), so every entry is human-authored. Reads peek; the agent acknowledges
+    /// explicitly, so polling loops that discard intermediate results never lose a message.
+    /// </summary>
+    public sealed class Inbox
+    {
+        public const int MaxChars = 500;
+        public const int Capacity = 50;
+        private readonly List<InboxMessage> messages = new List<InboxMessage>();
+        private int next;
+
+        public InboxMessage Add(string text, DateTime now)
+        {
+            string clean = MessageText.CleanForInbox(text);
+            var m = new InboxMessage { Id = ++next, Text = clean, Sent = now };
+            messages.Add(m);
+            if (messages.Count > Capacity)
+            {
+                messages.RemoveAt(0);
+            }
+            return m;
+        }
+
+        public List<InboxMessage> Unread() => messages.Where(m => !m.Acked).ToList();
+
+        /// <summary>Acknowledge everything up to and including id; returns how many were newly acked.</summary>
+        public int AckUpTo(int id)
+        {
+            int n = 0;
+            foreach (var m in messages.Where(m => !m.Acked && m.Id <= id))
+            {
+                m.Acked = true;
+                n++;
+            }
+            return n;
+        }
+
+        public IReadOnlyList<InboxMessage> All => messages;
     }
 
     /// <summary>Token bucket: a short burst, then a steady rate.</summary>
@@ -165,7 +239,7 @@ namespace BTBridge.Logic
             return n;
         }
 
-        private bool Shown(OverlayMessage m) => !m.Held && Enabled[m.Channel];
+        private bool Shown(OverlayMessage m) => !m.Held && (!Enabled.TryGetValue(m.Channel, out bool on) || on);
 
         /// <summary>The rolling feed: recent, enabled, not held; newest last.</summary>
         public List<OverlayMessage> Visible(DateTime now) =>

@@ -326,6 +326,7 @@ namespace BTBridge.Combat
                 open = true,
                 id = d.Id,
                 side = d.Side,
+                operator_messages = Ui.ChatOverlay.UnreadForAgent(),
                 standing_order_error = d.StandingOrderError,
                 round = d.Round,
                 phase = d.Phase,

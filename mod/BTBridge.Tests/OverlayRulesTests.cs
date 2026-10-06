@@ -49,6 +49,72 @@ namespace BTBridge.Tests
         }
     }
 
+    public class InboxTests
+    {
+        private static readonly DateTime T0 = new DateTime(2026, 10, 6, 12, 0, 0);
+
+        [Fact]
+        public void PeekingDoesNotConsume()
+        {
+            var inbox = new Inbox();
+            inbox.Add("focus the Atlas", T0);
+            Assert.Single(inbox.Unread());
+            Assert.Single(inbox.Unread());
+        }
+
+        [Fact]
+        public void AckUpToMarksOnlyThoseMessages()
+        {
+            var inbox = new Inbox();
+            var a = inbox.Add("one", T0);
+            inbox.Add("two", T0);
+            Assert.Equal(1, inbox.AckUpTo(a.Id));
+            Assert.Equal(new[] { "two" }, inbox.Unread().Select(m => m.Text));
+            Assert.Equal(0, inbox.AckUpTo(a.Id));
+        }
+
+        [Fact]
+        public void InputIsOneCleanLine()
+        {
+            var inbox = new Inbox();
+            Assert.Equal("hold fire then go", inbox.Add("hold fire\n\u0007then go ", T0).Text);
+            Assert.Equal(Inbox.MaxChars, inbox.Add(new string('y', 900), T0).Text.Length);
+            Assert.Throws<RuleException>(() => inbox.Add(" \t ", T0));
+        }
+
+        [Fact]
+        public void CapacityDropsOldest()
+        {
+            var inbox = new Inbox();
+            for (int i = 0; i < Inbox.Capacity + 5; i++)
+            {
+                inbox.Add("m" + i, T0);
+            }
+            Assert.Equal(Inbox.Capacity, inbox.All.Count);
+            Assert.Equal("m5", inbox.All[0].Text);
+        }
+
+        [Fact]
+        public void TheAgentCannotPostAsTheOperator()
+        {
+            Assert.Throws<RuleException>(() => MessageText.ParseChannel("operator"));
+        }
+
+        [Fact]
+        public void OperatorEchoIsAlwaysShown()
+        {
+            var f = new FeedState();
+            foreach (var ch in f.Enabled.Keys.ToList())
+            {
+                f.Enabled[ch] = false;
+            }
+            f.Post(Channel.Operator, "YOU", "focus the Atlas", T0, null);
+            Assert.Single(f.Visible(T0));
+            Assert.Single(f.HistoryView());
+            Assert.False(f.Enabled.ContainsKey(Channel.Operator));
+        }
+    }
+
     public class RateLimitTests
     {
         private static readonly DateTime T0 = new DateTime(2026, 10, 6, 12, 0, 0);

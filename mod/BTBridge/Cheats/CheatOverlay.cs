@@ -50,7 +50,7 @@ namespace BTBridge.Cheats
             try
             {
                 CheatService.Tick();
-                if (rebinding)
+                if (rebinding || ChatOverlay.Typing)
                 {
                     return;
                 }

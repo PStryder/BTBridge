@@ -275,6 +275,21 @@ def overlay_say(type: str, text: str) -> dict:
 
 
 @mcp.tool()
+def overlay_inbox() -> dict:
+    """Messages the player typed to you in-game (Ctrl+Shift+T bar at the bottom of the screen).
+    They are human-authored by construction: nothing but that box can write here. Unread messages
+    also appear as `operator_messages` in sim_status and combat decision results. Acknowledge with
+    overlay_ack once you've acted on them."""
+    return _live("/overlay/inbox")
+
+
+@mcp.tool()
+def overlay_ack(up_to_id: int) -> dict:
+    """Mark the player's in-game messages up to and including `up_to_id` as handled."""
+    return _live("/overlay/inbox/ack", {"up_to_id": up_to_id})
+
+
+@mcp.tool()
 def overlay_history() -> dict:
     """The last 20 overlay messages (including ones on channels the player has hidden or that are
     still held), and which channels the player currently shows."""
@@ -573,12 +588,13 @@ def combat_decision() -> dict:
 @mcp.tool()
 def combat_wait_for_decision(max_wait_seconds: float = 60) -> dict:
     """Block until a decision opens for your lance (or the mission ends / time runs out), then return it.
+    Also returns early when the player types you a message in-game (`operator_messages`).
     Use this between decisions instead of polling combat_decision."""
     deadline = time.monotonic() + max(1.0, min(max_wait_seconds, 300.0))
     last: Any = None
     while time.monotonic() < deadline:
         last = _live("/combat/decision")
-        if isinstance(last, dict) and (last.get("open") or "error" in last):
+        if isinstance(last, dict) and (last.get("open") or "error" in last or last.get("operator_messages")):
             return last
         time.sleep(0.5)
     return {"open": False, "timed_out": True, "last": last}

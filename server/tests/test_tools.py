@@ -42,6 +42,8 @@ CASES = [
     (server.overlay_say, {"type": "commentary", "text": "Nice shot."}, "POST", "/overlay/say",
      {"type": "commentary", "text": "Nice shot."}),
     (server.overlay_history, {}, "GET", "/overlay/history", None),
+    (server.overlay_inbox, {}, "GET", "/overlay/inbox", None),
+    (server.overlay_ack, {"up_to_id": 3}, "POST", "/overlay/inbox/ack", {"up_to_id": 3}),
     (server.sim_status, {}, "GET", "/sim/status", None),
     (server.sim_interrupt, {}, "GET", "/sim/interrupt", None),
     (server.sim_answer_interrupt, {"answer": {"option": 1}}, "POST", "/sim/interrupt", {"option": 1}),
@@ -110,3 +112,29 @@ def test_every_tool_targets_a_declared_route(rec):
     assert declared, "could not parse Routes.cs"
     for tool, kwargs, method, path, _ in CASES:
         assert (method, path.split("?")[0]) in declared, f"{tool.__name__}: {method} {path} is not a mod route"
+
+
+def test_wait_returns_early_on_operator_message(monkeypatch):
+    replies = iter([
+        {"open": False},
+        {"open": False, "operator_messages": [{"id": 1, "text": "focus the Atlas"}]},
+    ])
+
+    class B:
+        def get(self, path):
+            return next(replies)
+
+    monkeypatch.setattr(server, "bridge", lambda: B())
+    monkeypatch.setattr(server.time, "sleep", lambda s: None)
+    out = server.combat_wait_for_decision(30)
+    assert out["operator_messages"][0]["text"] == "focus the Atlas"
+
+
+def test_no_tool_writes_the_operator_inbox():
+    import asyncio
+    names = {t.name for t in asyncio.run(server.mcp.list_tools())}
+    assert {"overlay_inbox", "overlay_ack"} <= names
+    assert not [n for n in names if "inbox" in n and n not in ("overlay_inbox",)]
+    text = ROUTES_CS.read_text(encoding="utf-8")
+    assert 'Path = "/overlay/inbox", Handler' in text
+    assert "POST\", Path = \"/overlay/inbox\"" not in text

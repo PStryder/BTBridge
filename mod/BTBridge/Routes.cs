@@ -74,6 +74,9 @@ namespace BTBridge
                     return Ui.ChatOverlay.Say(b.Value<string>("type"), b.Value<string>("text"));
                 } },
             new Route { Method = "GET", Path = "/overlay/history", Handler = r => Ui.ChatOverlay.History() },
+            // operator -> agent messages: read-only here (only the in-game box writes them) plus acknowledge
+            new Route { Method = "GET", Path = "/overlay/inbox", Handler = r => Ui.ChatOverlay.InboxView() },
+            new Route { Method = "POST", Path = "/overlay/inbox/ack", Handler = r => Ui.ChatOverlay.Ack(Body(r).Value<int?>("up_to_id") ?? throw new BridgeException(400, "up_to_id is required")) },
 
             // campaign: status, interrupts, time
             new Route { Method = "GET", Path = "/sim/status", Handler = r => Interrupts.Status(RequireSim()) },
@@ -251,6 +254,7 @@ namespace BTBridge
                 {
                     open = false,
                     agent_commands = new { player = CombatControl.ActivePlayer == PlayerControl.Agent, enemy = CombatControl.ActiveEnemy == EnemyControl.Agent },
+                    operator_messages = Ui.ChatOverlay.UnreadForAgent(),
                     active_team = (combat.TurnDirector.ActiveTurnActor as Team)?.DisplayName,
                     round = combat.TurnDirector.CurrentRound,
                     phase = combat.TurnDirector.CurrentPhase,

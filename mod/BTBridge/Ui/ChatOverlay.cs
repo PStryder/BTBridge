@@ -30,6 +30,21 @@ namespace BTBridge.Ui
 
         private readonly Chord settingsChord = Chord.Parse("Ctrl+Shift+O");
         private readonly Chord historyChord = Chord.Parse("Ctrl+Shift+H");
+        private readonly Chord inputChord = Chord.Parse("Ctrl+Shift+T");
+
+        // -- operator input (human -> agent) ----------------------------------------------------------
+        private static readonly Inbox OperatorInbox = new Inbox();
+        private const string InputControl = "BTBridge.OperatorInput";
+        private const float InputHeight = 30f;
+        private string inputText = "";
+        private bool focusPending;
+        private bool? savedDynamic;
+        private bool? savedStatic;
+        private GUIStyle inputStyle;
+        private GUIStyle inputLabelStyle;
+
+        /// <summary>True while the operator is typing; game input is suspended (see InputPatches).</summary>
+        public static bool Typing { get; private set; }
         private bool settingsOpen;
         private bool historyOpen;
         private Vector2 historyScroll;
@@ -41,6 +56,7 @@ namespace BTBridge.Ui
             [Channel.Decision] = new Color(0.45f, 0.85f, 1f),
             [Channel.Warning] = new Color(1f, 0.75f, 0.3f),
             [Channel.System] = new Color(0.65f, 0.65f, 0.65f),
+            [Channel.Operator] = new Color(0.6f, 1f, 0.6f),
         };
 
         public static void Create(string modDir)
@@ -232,7 +248,15 @@ namespace BTBridge.Ui
         {
             try
             {
-                if (settingsChord.PressedThisFrame())
+                if (Typing)
+                {
+                    return;
+                }
+                if (inputChord.PressedThisFrame())
+                {
+                    OpenInput();
+                }
+                else if (settingsChord.PressedThisFrame())
                 {
                     settingsOpen = !settingsOpen;
                 }
@@ -247,12 +271,154 @@ namespace BTBridge.Ui
             }
         }
 
+        /// <summary>
+        /// Open the bottom input bar. All bound game actions (BTInput's InControl action sets) are
+        /// disabled while it is open, and the DebugConsole visibility gate makes the combat key
+        /// handler stand down, exactly as it does for HBS's own console.
+        /// </summary>
+        private void OpenInput()
+        {
+            Typing = true;
+            inputText = "";
+            focusPending = true;
+            try
+            {
+                var input = BTInput.Instance;
+                savedDynamic = input.DynamicActions?.Enabled;
+                savedStatic = input.StaticActions?.Enabled;
+                if (input.DynamicActions != null)
+                {
+                    input.DynamicActions.Enabled = false;
+                }
+                if (input.StaticActions != null)
+                {
+                    input.StaticActions.Enabled = false;
+                }
+            }
+            catch (Exception e)
+            {
+                Log.Warn("could not suspend game input: " + e.Message);
+            }
+        }
+
+        private void CloseInput()
+        {
+            if (!Typing)
+            {
+                return;
+            }
+            Typing = false;
+            focusPending = false;
+            try
+            {
+                var input = BTInput.Instance;
+                if (input.DynamicActions != null && savedDynamic.HasValue)
+                {
+                    input.DynamicActions.Enabled = savedDynamic.Value;
+                }
+                if (input.StaticActions != null && savedStatic.HasValue)
+                {
+                    input.StaticActions.Enabled = savedStatic.Value;
+                }
+            }
+            catch (Exception e)
+            {
+                Log.Warn("could not restore game input: " + e.Message);
+            }
+            savedDynamic = savedStatic = null;
+        }
+
+        private void OnDisable() => CloseInput();
+
+        private void SendInput()
+        {
+            string text = inputText;
+            CloseInput();
+            try
+            {
+                lock (Sync)
+                {
+                    var m = OperatorInbox.Add(text, DateTime.UtcNow);
+                    var echo = Feed.Post(Channel.Operator, "YOU", MessageText.Clean(m.Text), DateTime.UtcNow, null);
+                    Append(echo);
+                }
+            }
+            catch (RuleException)
+            {
+                // Empty input: nothing to send.
+            }
+        }
+
+        private void DrawInputBar()
+        {
+            var e = Event.current;
+            if (e.type == EventType.KeyDown)
+            {
+                if (e.keyCode == KeyCode.Return || e.keyCode == KeyCode.KeypadEnter)
+                {
+                    e.Use();
+                    SendInput();
+                    return;
+                }
+                if (e.keyCode == KeyCode.Escape)
+                {
+                    e.Use();
+                    CloseInput();
+                    return;
+                }
+            }
+            float y = Screen.height - InputHeight;
+            GUI.Box(new Rect(0, y, Screen.width, InputHeight), GUIContent.none);
+            GUI.Label(new Rect(8, y + 5, 150, InputHeight - 8), "To agent (Enter / Esc):", inputLabelStyle);
+            GUI.SetNextControlName(InputControl);
+            inputText = GUI.TextField(new Rect(164, y + 4, Screen.width - 172, InputHeight - 8), inputText, Inbox.MaxChars, inputStyle);
+            if (focusPending)
+            {
+                GUI.FocusControl(InputControl);
+                focusPending = false;
+            }
+        }
+
+        // -- inbox for the agent -----------------------------------------------------------------------
+
+        /// <summary>Unread operator messages (peek; acknowledged explicitly by the agent).</summary>
+        public static List<object> UnreadForAgent()
+        {
+            lock (Sync)
+            {
+                return OperatorInbox.Unread().Select(m => (object)new { id = m.Id, text = m.Text, utc = m.Sent.ToString("o") }).ToList();
+            }
+        }
+
+        public static object InboxView()
+        {
+            lock (Sync)
+            {
+                return new
+                {
+                    unread = OperatorInbox.Unread().Select(m => new { id = m.Id, text = m.Text, utc = m.Sent.ToString("o") }).ToList(),
+                    recent = OperatorInbox.All.Reverse().Take(10).Select(m => new { id = m.Id, text = m.Text, utc = m.Sent.ToString("o"), acked = m.Acked }).ToList(),
+                    note = "messages typed by the operator in-game (Ctrl+Shift+T); acknowledge with up_to_id once handled",
+                };
+            }
+        }
+
+        public static object Ack(int upToId)
+        {
+            lock (Sync)
+            {
+                return new { acknowledged = OperatorInbox.AckUpTo(upToId), unread = OperatorInbox.Unread().Count };
+            }
+        }
+
         private void EnsureStyles()
         {
             if (textStyle != null)
             {
                 return;
             }
+            inputStyle = new GUIStyle(GUI.skin.textField) { richText = false, fontSize = 14, alignment = TextAnchor.MiddleLeft };
+            inputLabelStyle = new GUIStyle(GUI.skin.label) { richText = false, fontSize = 12, alignment = TextAnchor.MiddleLeft };
             textStyle = new GUIStyle(GUI.skin.box)
             {
                 richText = false,
@@ -295,6 +461,10 @@ namespace BTBridge.Ui
             if (settingsOpen)
             {
                 settingsRect = GUI.Window(0x8772, settingsRect, DrawSettings, "BTBridge chat channels");
+            }
+            if (Typing)
+            {
+                DrawInputBar();
             }
         }
 

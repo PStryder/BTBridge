@@ -119,7 +119,18 @@ The agent can put short messages on screen with `overlay_say(type, text)` (route
 - **Non-blocking:** drawn on its own IMGUI layer, so there are no game popups or interrupts and nothing waits on it.
 - **Cheat notices:** they also land on the `system` channel. The red ARMED banner is separate and can't be hidden.
 
-**Planned phase 2, human-to-agent input:** a Ctrl+Shift+T text box feeding an inbox the agent reads. Unread messages would also be attached to `combat_wait_for_decision` and `sim_status`. HBS's debug console (`HBS.DebugConsole`) is an IMGUI text box too. The game checks its visibility in exactly one place (`CombatSelectionHandler`, through `DebugConsole.IsHidden`) before handling combat hotkeys. A postfix there can make our box block the same keys. Camera input still needs research.
+**Talking to the agent:** **Ctrl+Shift+T** opens a full-width input bar along the very bottom of the screen, in every scene. **Enter** sends; **Esc** cancels.
+- Your message echoes in the feed as `[YOU]`, which is always visible regardless of channel toggles.
+- It goes into an inbox that only this box can write to, so the agent can't fabricate operator messages.
+- The agent reads it with `overlay_inbox` and acknowledges it with `overlay_ack`. Unread messages also ride along as `operator_messages` on `sim_status` and on every combat decision response.
+- `combat_wait_for_decision` returns early when you send something, so a waiting agent hears you.
+
+**While you type, game input is suspended:**
+- BTInput's InControl action sets (camera, hotkeys, confirm/cancel) are disabled, and restored on close.
+- A postfix on `DebugConsole.IsHidden` makes the combat key handler stand down, the same gate HBS's own console uses.
+- **Known quirks:** a few spots read Unity's `Input` directly. While typing, **Space/Esc** can skip a combat dialog line, and **any key** can dismiss a turn-event banner or skip a skippable camera sequence.
+
+HBS's own debug console isn't reused: it's a floating debug window, and its input runs HBS debug commands.
 
 ### Operator cheat layer (off by default)
 

@@ -91,6 +91,7 @@ namespace BTBridge.Sim
             {
                 idle = blockers.Count == 0,
                 blockers,
+                operator_messages = Ui.ChatOverlay.UnreadForAgent(),
                 room = sim.CurRoomState.ToString(),
                 travel_state = sim.TravelManager?.TravelState.ToString(),
                 time_moving = sim.TimeMoving,
