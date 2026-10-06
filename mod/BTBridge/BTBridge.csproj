@@ -12,7 +12,10 @@
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
     <!-- Override on the command line: -p:GameDir=... -->
     <GameDir Condition="'$(GameDir)' == ''">F:\SteamLibrary\steamapps\common\BATTLETECH</GameDir>
-    <ManagedDir>$(GameDir)\BattleTech_Data\Managed</ManagedDir>
+    <!-- Windows/Linux builds keep the game assemblies in BattleTech_Data; macOS inside the app bundle. -->
+    <ManagedDir Condition="'$(ManagedDir)' == '' And Exists('$(GameDir)\BattleTech_Data\Managed')">$(GameDir)\BattleTech_Data\Managed</ManagedDir>
+    <ManagedDir Condition="'$(ManagedDir)' == '' And Exists('$(GameDir)/BattleTech.app/Contents/Resources/Data/Managed')">$(GameDir)/BattleTech.app/Contents/Resources/Data/Managed</ManagedDir>
+    <ManagedDir Condition="'$(ManagedDir)' == ''">$(GameDir)\BattleTech_Data\Managed</ManagedDir>
   </PropertyGroup>
 
   <ItemGroup>

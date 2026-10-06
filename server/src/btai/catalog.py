@@ -11,11 +11,45 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-DEFAULT_GAME_DIR = r"F:\SteamLibrary\steamapps\common\BATTLETECH"
+WINDOWS_GAME_DIR = r"F:\SteamLibrary\steamapps\common\BATTLETECH"
+MAC_GAME_DIR = "~/Library/Application Support/Steam/steamapps/common/BATTLETECH"
+LINUX_GAME_DIR = "~/.local/share/Steam/steamapps/common/BATTLETECH"
+
+
+def default_game_dir(platform: str | None = None) -> Path:
+    """The usual Steam install location for this OS (override with BATTLETECH_DIR)."""
+    platform = platform or sys.platform
+    if platform == "darwin":
+        return Path(MAC_GAME_DIR).expanduser()
+    if platform.startswith("linux"):
+        return Path(LINUX_GAME_DIR).expanduser()
+    return Path(WINDOWS_GAME_DIR)
+
+
+# Where StreamingAssets/data sits relative to the game directory, per build:
+# Windows and Linux ship a BattleTech_Data folder; macOS puts it inside the app bundle.
+# The last entry lets BATTLETECH_DIR point straight at BattleTech.app.
+DATA_DIR_LAYOUTS = (
+    ("BattleTech_Data", "StreamingAssets", "data"),
+    ("BattleTech.app", "Contents", "Resources", "Data", "StreamingAssets", "data"),
+    ("Contents", "Resources", "Data", "StreamingAssets", "data"),
+)
+
+
+def resolve_data_dir(game_dir: str | os.PathLike) -> Path:
+    """The game's StreamingAssets/data folder under `game_dir`, whichever layout it uses."""
+    root = Path(game_dir).expanduser()
+    candidates = [root.joinpath(*parts) for parts in DATA_DIR_LAYOUTS]
+    for c in candidates:
+        if c.is_dir():
+            return c
+    tried = "\n  ".join(str(c) for c in candidates)
+    raise FileNotFoundError(f"BattleTech data directory not found under {root}; tried:\n  {tried}")
 
 # Component folders under data/, keyed by the ComponentDefType the game uses in mechdef inventories.
 COMPONENT_DIRS = {
@@ -183,10 +217,8 @@ class Chassis:
 
 class GameData:
     def __init__(self, game_dir: str | os.PathLike | None = None):
-        game_dir = Path(game_dir or os.environ.get("BATTLETECH_DIR") or DEFAULT_GAME_DIR)
-        self.data_dir = game_dir / "BattleTech_Data" / "StreamingAssets" / "data"
-        if not self.data_dir.is_dir():
-            raise FileNotFoundError(f"BattleTech data directory not found: {self.data_dir}")
+        game_dir = game_dir or os.environ.get("BATTLETECH_DIR") or default_game_dir()
+        self.data_dir = resolve_data_dir(game_dir)
         self.components: dict[str, Component] = {}
         self.chassis: dict[str, Chassis] = {}
         self.mechs: dict[str, dict] = {}

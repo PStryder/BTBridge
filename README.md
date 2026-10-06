@@ -91,6 +91,21 @@ Because of the junction, a rebuild goes live on the next game launch. Close the 
 
 When ModTek loads, the main menu's version string reads `/W MODTEK`.
 
+### macOS and Linux (untested)
+
+Nothing here has been run on a Mac or Linux yet. The code is portable: the mod is platform-neutral .NET with no Windows APIs, and finds game files through Unity's own paths. These are the pieces adapted for other platforms:
+- **ModTek:** install its macOS/Linux files (the ones skipped in the Windows install) and launch through its script, as ModTek's own instructions describe. On Apple Silicon the game runs under Rosetta.
+- **Deploy:** `scripts/deploy.sh` does what `deploy.ps1` does, with a symlink instead of a junction:
+  ```bash
+  scripts/deploy.sh                      # build, then link Mods/BTBridge -> mod/BTBridge/bin/Release
+  scripts/deploy.sh --no-build           # just (re)create the link
+  scripts/deploy.sh --undeploy           # remove the link only
+  scripts/deploy.sh --game-dir "<path>"  # if the game isn't in the usual Steam folder
+  ```
+  It refuses to build while the game is running, and won't delete anything that isn't its own link. Set `BTBRIDGE_MODS_DIR` if ModTek's Mods folder isn't `<game dir>/Mods`.
+- **Building:** the project finds the game assemblies in either layout (`BattleTech_Data/Managed`, or `BattleTech.app/Contents/Resources/Data/Managed` on macOS). A DLL built on Windows should also work as-is.
+- **The MCP server's offline catalog** finds the game data in either layout too. Its default install location follows the OS (`~/Library/Application Support/Steam/...` on macOS, `~/.local/share/Steam/...` on Linux); `BATTLETECH_DIR` can point at the Steam folder or straight at `BattleTech.app`.
+
 ## Bridge API (v0.1)
 
 Every response is `{"ok": true, "data": ...}` or `{"ok": false, "error": "..."}`. Status codes:

@@ -23,7 +23,9 @@
   <!-- Route-table tests load BTBridge types whose signatures mention game types, so the game
        assemblies are copied next to the tests. No game code is executed. -->
   <PropertyGroup>
-    <ManagedDir>$(GameDir)\BattleTech_Data\Managed</ManagedDir>
+    <ManagedDir Condition="'$(ManagedDir)' == '' And Exists('$(GameDir)\BattleTech_Data\Managed')">$(GameDir)\BattleTech_Data\Managed</ManagedDir>
+    <ManagedDir Condition="'$(ManagedDir)' == '' And Exists('$(GameDir)/BattleTech.app/Contents/Resources/Data/Managed')">$(GameDir)/BattleTech.app/Contents/Resources/Data/Managed</ManagedDir>
+    <ManagedDir Condition="'$(ManagedDir)' == ''">$(GameDir)\BattleTech_Data\Managed</ManagedDir>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Assembly-CSharp"><HintPath>$(ManagedDir)\Assembly-CSharp.dll</HintPath><Private>true</Private></Reference>
