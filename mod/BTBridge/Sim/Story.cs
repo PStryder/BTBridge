@@ -368,7 +368,12 @@ namespace BTBridge.Sim
         }
     }
 
-    [HarmonyPatch(typeof(SimGameConversationManager), "StartConversation")]
+    // Two overloads; the ConversationEntry one delegates to this one, so this catches both.
+    [HarmonyPatch(typeof(SimGameConversationManager), "StartConversation", new[]
+    {
+        typeof(Conversation), typeof(string), typeof(string), typeof(CastDef), typeof(bool),
+        typeof(DropshipMenuType), typeof(string),
+    })]
     public static class RecordConversationSeen
     {
         public static void Postfix(SimGameConversationManager __instance, Conversation convoDef)
