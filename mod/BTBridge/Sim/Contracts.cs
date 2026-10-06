@@ -90,7 +90,7 @@ namespace BTBridge.Sim
                 expires_in_days = c.UsingExpiration ? (int?)c.ExpirationTime : null,
                 meets_reputation = sim.ContractUserMeetsReputation(c),
                 description = c.ShortDescription,
-                objectives = o?.objectiveList?.Select(x => new { title = x.title, primary = x.isPrimary }).ToList(),
+                objectives = BTBridge.Combat.Objectives.PlayerObjectives(c),
             };
         }
 

@@ -252,7 +252,7 @@ namespace BTBridge.Sim
         }
 
         private static string Text(SimGameState sim, string template) =>
-            string.IsNullOrEmpty(template) ? template : Interpolator.Interpolate(template, sim.Context, true);
+            string.IsNullOrEmpty(template) ? template : GameText.Plain(Interpolator.Interpolate(template, sim.Context, true));
 
         private static object Event(SimGameState sim)
         {
@@ -290,7 +290,7 @@ namespace BTBridge.Sim
             }
             try
             {
-                return sim.BuildSimGameResults(LastEventResult.Results, sim.Context).Select(r => r.Text?.ToString()).ToList();
+                return sim.BuildSimGameResults(LastEventResult.Results, sim.Context).Select(r => GameText.Plain(r.Text?.ToString())).ToList();
             }
             catch (Exception e)
             {

@@ -21,7 +21,7 @@ namespace BTBridge.Combat
             }
             try
             {
-                return Interpolator.Interpolate(template, c.GameContext, true);
+                return BTBridge.Logic.GameText.Plain(Interpolator.Interpolate(template, c.GameContext, true));
             }
             catch
             {
@@ -29,18 +29,23 @@ namespace BTBridge.Combat
             }
         }
 
+        public static object PlayerObjectives(Contract c) =>
+            c?.Override?.contractObjectiveList?.Select(o => new
+            {
+                title = Text(c, o.title),
+                description = Text(c, o.description),
+                primary = o.isPrimary,
+            }).ToList();
+
         public static object Briefing(Contract c) => c == null ? null : new
         {
             contract = c.Name,
             type = c.ContractTypeValue?.Name,
             short_description = c.ShortDescription,
             long_description = c.LongDescription,
-            planned_objectives = c.Override?.objectiveList?.Select(o => new
-            {
-                title = Text(c, o.title),
-                description = Text(c, o.description),
-                primary = o.isPrimary,
-            }).ToList(),
+            // contractObjectiveList is what the player is shown (the combat HUD lists it). The
+            // encounter's objectiveList also holds the AI's hidden objectives; never expose it.
+            planned_objectives = PlayerObjectives(c),
         };
 
         public static object Live(CombatGameState combat)
