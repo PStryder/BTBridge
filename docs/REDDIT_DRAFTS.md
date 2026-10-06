@@ -4,7 +4,7 @@ Drafts for announcing battletech-ai. Nothing here has been posted. Fill the `[br
 
 ## Before posting
 
-- [ ] Is the GitHub repo public? Both posts link to it.
+- [x] The GitHub repo is public (confirmed 2026-10-06; not yet promoted anywhere).
 - [ ] Play at least one skirmish against the agent-commanded OpFor, and replace the `[OPFOR TEST]` paragraph with what actually happened (good or bad).
 - [ ] Decide whether to ship a prebuilt `BTBridge.dll` as a GitHub release. Right now it's build-from-source only (needs the .NET SDK and the game installed), which will stop most r/Battletechgame readers.
 - [ ] Screenshots or a short clip: the chat overlay over a combat turn, the agent's decision feed, the Begin-Mission-to-salvage run.
@@ -44,7 +44,7 @@ What it doesn't do (yet):
 - The scripted driver I used for testing won every mission but **got two of my pilots killed** holding a base against two assault 'Mechs. The real thing is the agent thinking through each turn, which is slower (10–30 s per unit).
 - Flashpoints are wired up but I haven't played one through.
 
-Repo: [link]. Happy to answer questions about the hooks; the docs folder has notes on how the game's campaign and combat code fit together.
+Repo: https://github.com/PStryder/battletech-ai. Happy to answer questions about the hooks; the docs folder has notes on how the game's campaign and combat code fit together.
 
 ---
 
@@ -74,4 +74,4 @@ What surprised me: most of the bugs weren't in the hooks but in *reporting*. The
 
 [OPFOR TEST: one or two sentences.]
 
-Repo: [link]. Vanilla BattleTech 1.9.1 + ModTek on Windows; build from source for now.
+Repo: https://github.com/PStryder/battletech-ai. Vanilla BattleTech 1.9.1 + ModTek on Windows; build from source for now.
