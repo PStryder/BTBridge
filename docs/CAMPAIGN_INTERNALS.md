@@ -4,7 +4,7 @@ These are research notes from the decompile of v1.9.1, for the campaign layer be
 - `SGS` = `BattleTech/SimGameState.cs` (about 13.7k lines)
 - `SIM` = `BattleTech.UI/SimGameInterruptManager.cs`
 
-**Status: built (BTBridge `Sim/` + `Logic/`), compiles, rule tests pass; not yet run in-game.** Line numbers are approximate pointers into one decompile run. Anything marked *(untested)* was inferred from code, not seen in-game.
+**Status: built (BTBridge `Sim/`, `State/`, `Logic/`) and verified in-game on a test career:** about 60 in-game days, two jumps, three contracts run end to end with no clicks. The marks that used to say *(untested)* have been checked against the game; [What the live tests found](#what-the-live-tests-found) lists the corrections. Line numbers are approximate pointers into one decompile run.
 
 All calls run on Unity's main thread, through the bridge's existing pump.
 
@@ -105,12 +105,12 @@ All calls run on Unity's main thread, through the bridge's existing pump.
   | Map | `mapName`, `ContractBiome` |
   | Expiry | `UsingExpiration`, `ExpirationTime` |
   | Flags | `IsPriorityContract`, `IsStoryContract`, `IsFlashpointContract`, `Override.travelOnly`, `TargetSystem` |
-- **Negotiate and accept** *(untested)*:
+- **Negotiate and accept** (verified):
   1. `sim.SetSelectedContract(c, c.Override.travelOnly)`.
   2. `c.SetNegotiatedValues(pay, salvage)`. Fractions: the sum should be ≤ 1, and the reputation share = 1 − sum (only for employers that gain reputation; otherwise salvage = 1 − pay). For non-negotiable contracts use `Override.negotiatedSalary` / `negotiatedSalvage`.
   3. `travelOnly` → `sim.PrepareBreadcrumb(c)` (async route). Otherwise go to lance and launch.
   - If a travel contract is already active, accepting another breaks it (reputation penalty). Report it rather than doing it silently.
-- **Lance and launch** *(untested; option B preferred)*:
+- **Lance and launch** (option B, verified; it works from any room, including the store):
   - **B (keeps the game flow):** prefix `LanceConfiguratorPanel.CreateLanceConfiguration` to return the agent's lance. Call `sim.StartLanceConfiguration()`, wait for `LC.Initialized`, then call the public `LC.ContinueConfirmAudioCallback(null, AkCallbackType.AK_EndOfEvent, null)`.
     - `OnContractReady` calls `FillContractLance`, which re-reads `CreateLanceConfiguration`.
     - This also covers forced, story and flashpoint contracts, and skips the warning popups.
@@ -123,6 +123,10 @@ All calls run on Unity's main thread, through the bridge's existing pump.
     - `maxNumberOfPlayerUnits`;
     - `Contract.Accept()` throws if the lance is invalid.
 - **In mission:**
+  - **Begin Mission:** after loading, the `Briefing` module waits on its start button. `Briefing.BeginPlaying()` does nothing until the private `loadingState` is `Complete`; poll it, then call.
+  - **Mission dialogue:** intros and objective chatter run through `InterruptDialogSequence` on the shared `SGDialogWidget` and block the mission. Advance with `ReceiveButtonPress("ContinueDialog")` (what the Continue button sends; it also handles the end-of-conversation close). A postfix on `SGDialogWidget.Show` captures speaker and text.
+  - **Radio chatter:** voiced, non-blocking lines (Darius, pilot barks) go through `AsyncDialogSequence` into the combat HUD's side and front stacks; all of them end in `CombatHUDDialogItem.Show(text, color, speaker)`.
+  - **Objectives the player sees** are `Override.contractObjectiveList` (what `CombatHUDObjectivesList` draws). `Override.objectiveList` is the encounter's own list and includes the AI's hidden objectives ("Hidden KILL OBJECTIVE for OpFor1"); never show it. Live status: `ObjectiveGameLogic` components under the `EncounterLayerData`, skipping `IsHidden`, `!displayToUser`, and status `Ignored` (not yet triggered, such as reinforcements).
   - **No deployment-zone choice** in vanilla.
   - **Withdraw:** `combat.MessageCenter.PublishMessage(new MissionRetreatMessage(FindObjectOfType<EncounterLayerData>().IsGoodFaithEffort))`. The UI hides it for priority, story and skirmish missions.
   - **Mission end:** `CombatHUDMissionEnd.ReceiveButtonPress("Exit")` loads `MissionResultLauncher`. An end dialogue (`InterruptDialogSequence`) may need advancing first.
@@ -133,6 +137,7 @@ All calls run on Unity's main thread, through the bridge's existing pump.
     - Picks allowed: `FinalPrioritySalvageCount` (≤ 8).
     - Submit once: `contract.FinalizeSalvage(picks)`, then `AAR_SalvageScreen.OnCompleted()`.
     - `FinalizeSalvage` doesn't cap the number of picks and appends on every call, so enforce the cap and call it only once.
+    - **`FinalizeSalvage` drains the list it is given** (`RemoveAt(0)` until empty). Anything reading that list afterwards sees nothing: the bridge's report said "0 picks" for two missions while the game had taken them. Report from a snapshot and pass a copy. `Contract.GUID` can be null, so guard "once per contract" by reference, not GUID.
   - **Back in the sim**, `ResolveCompleteContract` applies funds, reputation, XP, salvage, lost mechs and dead pilots. Read them from the contract:
     - `State`, `MoneyResults`, reputation results, `ExperienceEarned`
     - `MissionObjectiveResultList`, `PlayerUnitResults`, `KilledPilots`, `LostMechs`, `SalvageResults`
@@ -146,7 +151,7 @@ All calls run on Unity's main thread, through the bridge's existing pump.
 - **Cost and time:**
   - `JumpShipCost` per jump, waived on a travel contract.
   - Days = `DistanceToJumpship()` + Σ node `Cost` + destination `JumpDistance`.
-- **Travel** *(untested)*:
+- **Travel** (verified):
   1. `Starmap.SetSelectedSystem(id)`, then wait for routing (`StarSystemRouted` / `PotentialPath`).
   2. Check requirements, funds ≥ `ProjectedTravelCost`, and that there's no travel contract to break.
   3. `Starmap.SetActivePath()`, then `sim.SetSimRoomState(DropshipLocation.SHIP)` (required: travel steps defer unless the room is SHIP).
@@ -165,6 +170,7 @@ All calls run on Unity's main thread, through the bridge's existing pump.
     - Primary abilities are permanent (2 primaries + 1 specialist), so confirm with the player.
   - **Hire:** `CurSystem.AvailablePilots`, priced with `GetPurchaseCostAfterReputationModifier(GetMechWarriorHiringCost(def))`. `CurSystem.HirePilot(def)` does **no checks**, so redo them: in system, roster below max, MRB and morale gates, funds.
   - **Fire:** `DismissPilot`. **Medbay** is automatic.
+- **Repair** (`MechBayPanel.OnRepairMech`): `CreateMechRepairWorkOrder` per location below full internal structure, `CreateComponentRepairWorkOrder` for damaged components, both skipping anything already under maintenance; days = ceil(Σ cost / MechTechSkill). Armor needs no order: the game restores it as the structure under it is repaired. **Destroyed components are scrapped, not replaced**, as the game's own repair popup warns ("replacement Components will NOT be installed"); replacing them is a refit from storage. Refits never repair damage.
 - **Store:**
   - Shops: `CurSystem.SystemShop` / `FactionShop` / `BlackMarketShop`, inventory in `.ActiveInventory`, prices from `GetPrice(item, type, ThisShopType)`.
   - **Buy:** `shop.Purchase(id, IsInfinite ? Normal : Special, item.Type)`. **Check funds first:** a `Special` purchase lowers stock before checking money.
@@ -197,15 +203,36 @@ The campaign is waiting for the player when all of these hold:
 
 Debounce for a frame or two. Then branch on `CurRoomState` and `TravelState`.
 
-## Build plan
+## Story text
 
-1. **The interrupt layer first.** Everything else stalls without it:
-   - `GET /sim/status`: the idle predicate plus what is waiting.
-   - `GET /sim/interrupt`: the waiting interrupt, typed and readable.
-   - `POST /sim/interrupt`: answer it through the module's own handler.
-   - Events and conversations, with the double-apply guard.
-2. **Time:** `POST /sim/time {days | until: "event"}`.
-3. **The contract loop:** list, accept (negotiated), set lance and launch (option B), withdraw, mission end, salvage, results.
-4. **Navigation:** systems, route preview, travel.
-5. **Company:** pilots (XP, hire, fire), store (buy and sell), Argo upgrades, finances.
-6. **Flashpoints.**
+- **Campaign conversations** live in `DataManager.SimGameConversations` (139 `.convo.bytes` files, all loaded at campaign start). The type is `isogame.Conversation` from **ShadowrunDTO.dll**, HBS's Shadowrun dialogue engine: `nodes` (index, text, speaker refs, `branches`) and `roots`. Speakers resolve the way `SimGameConversationManager` does: `sourceInSceneRef` → `GetCastDef(id, addPrefix)`, else `speaker_override_id` → `GetCastDefFromSpeakerID`, else the conversation's `default_speaker_id`.
+- **Cinematics** are Bink videos (`StreamingAssets/Video/*.bk2`). Milestone defs map them to story order (`Results[].Actions[]` of type `System_PlayVideo`, gated on `NextStoryMilestone`). Subtitles are plain `.srt` files in `Video/Subtitles/` for 9 of 17 videos, **with no speaker names**.
+- **Skip:** `SGVideoPlayer.StopVideo()` while `Status == PLAYING`, which is what Escape does; the game's completion then runs milestones as usual.
+- **Career mode has no story**: no cinematics or scripted conversations play there.
+
+## What the live tests found
+
+Corrections and surprises from running the layer on a test career:
+
+| Area | Finding |
+|---|---|
+| Popups | Five modules were missing from the visible-popup scan: `HeavyMetalContentReviewPopup` (answer with `Close(accepted)`), `MercNetUpdatePopup`, `ImageAndTextInfoPopup` (the Flashpoints notice), `SG_CareerModeEndScoreDisplay`, `SGCampaignOutcomeScreen` |
+| Arrival | The arrival notification's primary button is **Visit Store**, which switches room. Pick the button by label, never by position |
+| Status during launch | `SimGameState.TimeMoving` dereferences `RoomManager`, which is null while a mission is loaded. Guard it |
+| Event text | Interpolated text keeps the UI's link markup (`[[SCN_MW,Crazy Quilt]]`, `[[TDSF[pilot_honest], Honest]]`) and TMP tags; strip them for the agent. The C-bill sign is `¢` (U+00A2) |
+| Contract text | "The ENEMYFACTION scum…" in `AmbushConvoy_CovertSupplies.json` is a literal typo in the game data, not an unfilled placeholder |
+| Hiring | `CanMechWarriorBeHiredAccordingToMRBRating` refuses better pilots early on; list it per pilot so the agent doesn't try |
+| Selling | Sell all-or-nothing: a loop that stops at "none left" quietly sells fewer than asked |
+| Repair | Destroyed components are lost (see Company management) |
+| Salvage | `FinalizeSalvage` drains its input list (see the mission loop) |
+| Expenses | Generous spending costs about 40% more per quarter than Normal for +1 morale; the quarterly report is the only clean place to change it |
+
+## Build plan (done)
+
+1. **The interrupt layer.** Status, typed interrupts, answers through each module's own handler, events with the double-apply guard. ✔
+2. **Time.** ✔
+3. **The contract loop:** list, accept, lance and launch, Begin Mission, mission dialogue, withdraw, mission end, AAR, salvage. ✔
+4. **Navigation.** ✔
+5. **Company:** pilots, store, Argo, finances, repair. ✔
+6. **Flashpoints:** list and accept built; a full flashpoint not yet played.
+7. **Story text** and cinematic skip: built; the skip and seen-tracking need a Campaign save.

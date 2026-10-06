@@ -19,6 +19,26 @@ ilspycmd -p -o <outdir> -r $m "$m\Assembly-CSharp.dll"   # ~5,650 files, ~2 minu
 - `UnityGameInstance.Update` (private) runs every frame for the whole session: menus, campaign and combat. The bridge drains its main-thread queue from a postfix on it.
 - Global access: `UnityGameInstance.BattleTechGame` returns a `GameInstance`, which has `.Simulation` (`SimGameState`), `.Combat` (`CombatGameState`) and `.DataManager`.
 
+## Modding traps that stop the game or the mod
+
+Each of these happened during development; each now has a test in `BTBridge.Tests`.
+
+| Trap | What happens | Guard |
+|---|---|---|
+| A `[HarmonyPatch]` naming an **overloaded** method without argument types (`SimGameConversationManager.StartConversation` has two) | `AmbiguousMatchException` inside `PatchAll`; the whole mod fails to start | `PatchTargetTests`: every patch resolves to exactly one method in the installed game |
+| A hook **parameter name** that isn't the original's (`prioritySalvage` vs the game's `priorityItems`) | Harmony binds by name and fails at patch time; same result | `PatchTargetTests`: every Prefix/Postfix parameter is a real parameter or `__instance`/`__result`/`__state`/`___field` |
+| `LazySingletonBehavior<T>.Instance` before the game has made `T` | It **creates** the singleton. Asking for `UIManager` from the overlay's first frame built one early; its `Awake` threw, ModTek's content load then failed in `GetFirstModule`, and the game sat on a black window | `SingletonGuardTests`: only `Ui/GameUi.cs` may read it, behind `HasInstance`. `CameraControl.Instance` and `BTInput.Instance` only find or return, so they're safe |
+
+Two more, not crashes:
+- **Shell-written source.** A Python heredoc turned `\b` into a literal backspace inside a regex; the test that used it silently matched nothing. Write source with an editor tool, and scan for control characters if a pattern mysteriously never matches.
+- **UI colors** live on prefabs, not in code; the named ones are on `UIManager.UILookAndColorConstants` (`ObjectiveColorPrimary` and friends, `.color`).
+
+## Camera
+
+- There is no "follow the acting unit" setting. The game only shows camera for visible enemy movement (`ActorMovementSequence.ShowCamera`) and its attack sequences.
+- Selecting a unit pans with `CameraControl.Instance.SetMovingToGroundPos(actor.CurrentPosition)` (`CombatSelectionHandler`). The bridge does the same when a decision's move stage opens, but never for an enemy unit the local team can't see at `VisibilityLevel.LOSFull`.
+- Screen-space size of a HUD element: `RectTransform.GetWorldCorners`, then `UIManager.UICamera.WorldToScreenPoint` when `UIRoot.renderMode == ScreenSpaceCamera`. The overlay matches its width to `CombatHUDObjectivesList.objectivesStack` this way.
+
 ## Combat AI: the decision point
 
 `AITeam.think()` runs every frame while the AI team is active:
