@@ -6,7 +6,7 @@ Drafts for announcing battletech-ai. Nothing here has been posted. Fill the `[br
 
 - [x] The GitHub repo is public (confirmed 2026-10-06; not yet promoted anywhere).
 - [ ] Play at least one skirmish against the agent-commanded OpFor, and replace the `[OPFOR TEST]` paragraph with what actually happened (good or bad).
-- [ ] Decide whether to ship a prebuilt `BTBridge.dll` as a GitHub release. Right now it's build-from-source only (needs the .NET SDK and the game installed), which will stop most r/Battletechgame readers.
+- [x] Prebuilt zips published as the v0.1-alpha GitHub pre-release (Windows + macOS).
 - [ ] Screenshots or a short clip: the chat overlay over a combat turn, the agent's decision feed, the Begin-Mission-to-salvage run.
 - [ ] Re-read the "what doesn't work" list against the current README status table.
 - [ ] r/Battletechgame rules on self-promotion and mod posts: check the sidebar before posting.
@@ -40,7 +40,7 @@ Things I learned the hard way that might interest modders:
 
 What it doesn't do (yet):
 - **Vanilla 1.9.1 + ModTek only.** RogueTech, BTA and anything using MechEngineer/CleverGirl change the same systems; not supported.
-- No prebuilt download [unless that changed]: you'd build it from source.
+- It's an alpha: prebuilt Windows and macOS zips are on the [v0.1-alpha release](https://github.com/PStryder/battletech-ai/releases/tag/v0.1-alpha), and macOS is untested.
 - The scripted driver I used for testing won every mission but **got two of my pilots killed** holding a base against two assault 'Mechs. The real thing is the agent thinking through each turn, which is slower (10–30 s per unit).
 - Flashpoints are wired up but I haven't played one through.
 
@@ -74,35 +74,48 @@ What surprised me: most of the bugs weren't in the hooks but in *reporting*. The
 
 [OPFOR TEST: one or two sentences.]
 
-Repo: https://github.com/PStryder/battletech-ai. Vanilla BattleTech 1.9.1 + ModTek on Windows; build from source for now.
+Repo: https://github.com/PStryder/battletech-ai. Vanilla BattleTech 1.9.1 + ModTek. Prebuilt v0.1 alpha zips for Windows and macOS are on the releases page.
 
 ---
 
-## Draft 3: r/Battletechgame, macOS testers wanted
+## Draft 3: r/Battletechgame, alpha testers wanted (Windows and macOS)
 
-Before posting: package a prebuilt release zip (`BTBridge.dll`, `mod.json`, `INSTALL-macOS.md`) and replace the bracketed line.
+Ready to post: the v0.1-alpha release is live, and both links were downloaded and checksum-verified on 2026-10-06.
 
-**Title:** Looking for macOS BattleTech players to help test a mod (ModTek, 15–30 minutes)
+**Title:** Alpha testers wanted: a BattleTech mod that lets an AI play the campaign (or fight you as the OpFor). Windows and macOS
 
 **Body:**
 
-I've been building a mod that lets an AI agent play HBS BattleTech through the game's own logic: running the campaign, fighting missions, or commanding the OpFor against you, with a small in-game chat overlay. It works on Windows, and I've just added macOS support, but I don't have a Mac to test it on. That's where I need help.
+I've been building **BTBridge**, a mod that lets an AI agent play HBS BattleTech through the game's own logic rather than clicking the screen. It can read your company and the mechlab while you build, refit and repair mechs, run the campaign loop (contracts, missions, salvage, travel, events, pilots, the store), command a lance in combat on your side or **as the enemy against you**, and chat with you through a small in-game overlay.
 
-**What I'm looking for:** a few people with BattleTech on a Mac (Steam, v1.9.1), ideally one Intel Mac and one Apple Silicon (the game runs under Rosetta there).
+It works on my Windows machine. Now I need other people's setups, and **especially macOS players, because I don't have a Mac**: the Mac build has never been run.
 
-**What the test involves:**
-1. Install ModTek using its macOS instructions, if you don't already have it.
-2. Drop in the mod. [I'll provide a prebuilt zip, so no compiling.]
-3. Launch to the main menu and check that the version string shows ModTek.
-4. Send me two log files: `BTBridge.log` from the mod folder, and ModTek's log from `Mods/.modtek/`.
+**Downloads (v0.1 alpha):**
+- Windows: https://github.com/PStryder/battletech-ai/releases/download/v0.1-alpha/BTBridge-v0.1-alpha-windows.zip
+- macOS: https://github.com/PStryder/battletech-ai/releases/download/v0.1-alpha/BTBridge-v0.1-alpha-macos.zip
+- Release page (notes and checksums): https://github.com/PStryder/battletech-ai/releases/tag/v0.1-alpha
+- The project: https://github.com/PStryder/battletech-ai
 
-That's the core test: does it load. If you're up for more, I'll have a short checklist of 2–3 things to try in a skirmish.
+**You need:** BattleTech **1.9.1** on Steam, **vanilla** (it won't work alongside RogueTech, BTA or other overhaul packs, so use a clean install), and **ModTek v4.5.1**: https://github.com/BattletechModders/ModTek/releases. Back up your saves folder first, as with any mod.
 
-**Things to know:**
-- **Vanilla only.** It's built for vanilla BattleTech + ModTek. It won't work alongside RogueTech, BTA or other overhaul packs, so use a clean install or a separate copy.
-- **Saves:** it doesn't touch them unless you use it in a campaign. Back up your saves folder anyway, as with any mod.
-- **It's an early project,** so if something breaks, the logs are exactly what I need. A failure is a useful result.
+**Windows install:**
+1. From the ModTek zip, copy `winhttp.dll`, `doorstop_config.ini` and the `Mods` folder into your BattleTech folder (the one with `BattleTech.exe`; on Steam usually `C:\Program Files (x86)\Steam\steamapps\common\BATTLETECH`).
+2. From my zip, copy the `BTBridge` folder into `BATTLETECH\Mods\`.
+3. Launch to the main menu. The version text should end in `/W MODTEK`, and `Mods\BTBridge\BTBridge.log` should say `BTBridge 0.1.0 initialized`.
 
-Repo, with more on what it does: https://github.com/PStryder/battletech-ai
+**macOS install:**
+1. Install ModTek following its macOS instructions (the game is launched through ModTek's script, set as the Steam launch option). The game folder is usually `~/Library/Application Support/Steam/steamapps/common/BATTLETECH`.
+2. From my zip, copy the `BTBridge` folder into ModTek's `Mods` folder (normally `BATTLETECH/Mods`, next to `BattleTech.app`). If macOS quarantines it: `xattr -dr com.apple.quarantine BATTLETECH/Mods/BTBridge`
+3. Launch to the main menu and check for `Mods/BTBridge/BTBridge.log`.
 
-Comment here or DM me if you're willing. Thanks!
+Each zip includes a fuller INSTALL guide.
+
+**What to send back** (a comment, a DM, or a GitHub issue), whether it worked or not:
+- Windows or Mac (and for Macs: Intel or Apple Silicon, macOS version)
+- `Mods/BTBridge/BTBridge.log` (if it's missing, the mod never loaded, which is useful to know too)
+- `Mods/.modtek/ModTek.log` and `Mods/.modtek/battletech_log.txt`
+
+The zips are the game mod only; hooking up an AI agent (Claude or any MCP client) uses the MCP server in the repo, described in the README. Getting the mod to load cleanly on more machines is the first step.
+
+It's alpha, so things may break, and when they do the logs are exactly what I need. Thanks!
+

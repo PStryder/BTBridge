@@ -23,6 +23,8 @@ BattleTech (Unity/Mono, vanilla 1.9.1 + ModTek)
      └─ btai-cheats-mcp: a separate, gated server for operator cheats (off by default)
 ```
 
+**Download:** prebuilt mod zips for Windows and macOS are on the [v0.1-alpha release](https://github.com/PStryder/battletech-ai/releases/tag/v0.1-alpha), each with an install guide (macOS is untested, and testers are welcome). To connect an agent, also run the MCP server in `server/` (see [Build and test](#build-and-test)).
+
 The target is vanilla 1.9.1 with ModTek, with BTBridge as the only mod. Overhaul packs such as RogueTech or BTA (MechEngineer, CustomComponents, CustomAmmoCategories, CleverGirl) change mech construction and patch the same AI methods, so they aren't supported.
 
 How the game works inside, and why the hooks sit where they do:
