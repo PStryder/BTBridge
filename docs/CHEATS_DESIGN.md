@@ -197,9 +197,16 @@ In-game (in the combined test session, once built):
 5. **The `btai-cheats` MCP server** and its tests, plus docs. The ordinary server is untouched.
 6. **Later, opt-in:** a session speed multiplier (option B); permanent tech-stat deltas (option C) with a reverse op; pilot XP/injuries; reputation; mech instant-repair (queue repair orders the normal way, then complete them).
 
-## Open questions for the operator
+## Operator decisions
 
-1. Arming hotkey: is Ctrl+Shift+F9 OK? Default window: 15 minutes, no operation budget?
+1. **Decided (2026-10-06):** arming hotkey **Ctrl+Shift+F9**; default window **15 minutes**; no operation budget by default.
+   - **The hotkey, window and budget are configurable only by the operator,** through `mod.json` (`CheatArmHotkey`, `CheatArmMinutes`, `CheatArmMaxOps`, read at startup) or an **in-game settings panel**.
+   - **There is no bridge route to read-write or change them.** `/cheat/status` reports the current values read-only, so the agent can't widen its own window.
+   - The panel is part of the BTBridge overlay (`OnGUI`), opened with **Ctrl+Shift+F10**. It offers window length (−/+), operation budget, and "press a key to rebind".
+   - Panel changes are stored in `PlayerPrefs` under `BTBridge.Cheat.*` and take priority over `mod.json`. "Reset" clears them back to `mod.json`.
+   - The panel and its hotkey exist only when the cheat capability is on.
+
+## Open questions for the operator
 2. Should the campaign marker (tag + counter) be on by default (recommended), or be a setting?
 3. Ironman: refuse outright, or allow behind the restart-time setting?
 4. For build speed: is option A (finish now) enough for v1, or do you also want B (a session multiplier)?
