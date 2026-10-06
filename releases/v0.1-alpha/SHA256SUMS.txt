@@ -1,0 +1,2 @@
+d0ab06122b69eab11f8cc961abda3a8e44e418f3ebb7773c30f1b83e364e8b9c  BTBridge-v0.1-alpha-windows.zip
+eb51793b877e737748c5daf8afd550911886e026aa9d2e46edb1aba833e82c2e  BTBridge-v0.1-alpha-macos.zip
