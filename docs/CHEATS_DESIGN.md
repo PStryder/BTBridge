@@ -1,6 +1,6 @@
 # Operator cheat layer: design and build plan
 
-**Status: design only, nothing implemented.** Research is against the v1.9.1 decompile. Class and method names are exact. Line numbers are approximate.
+**Status: v1 built (BTBridge `Cheats/`, `Logic/CheatRules.cs`, `btai-cheats-mcp`); unit- and mutation-tested; not yet run in-game.** Research is against the v1.9.1 decompile. Class and method names are exact. Line numbers are approximate.
 
 ## Purpose and boundary
 
@@ -111,6 +111,12 @@ Each convenience tool calls **preview, then execute** inside the MCP server, ret
 These reuse the refit-plan and event-guard lessons:
 - **Single-use plans.** `execute(plan_id)` consumes the plan. Replaying the same `plan_id` returns the **original result** (the ledger keeps it) and changes nothing. Retries of the same execution are therefore idempotent.
 - **Plans expire** after 2 minutes, or as soon as anything they depend on changes: funds, the target bay, item counts, the queue contents. Each plan stores a fingerprint, as `RefitPlanner` does, and execution re-checks it.
+- **Plans are bound to the campaign and to this load of it** (operator requirement, 2026-10-06). Each plan records:
+  - **`campaign_id`** = `SimGameState.InstanceGUID`, a per-campaign GUID that survives save/load;
+  - **`load_epoch`**, a BTBridge counter that goes up on every `SimGameState.Rehydrate` (any save load) and whenever a different `SimGameState` instance appears (new career, main menu round trip);
+  - the **before-state fingerprint** above.
+
+  Execute refuses with `409 campaign or load changed since preview` if the campaign or the epoch differs, so a plan previewed before a reload or campaign switch can never run against another state. It refuses with `409 state changed since preview` if the fingerprint differs.
 - **A new request needs a new preview.** "Give me another 10M" is a new plan by design; an accidental double execute is not.
 - The ledger is in memory and also mirrored to the audit file, so a duplicate is visible after the fact.
 
@@ -152,6 +158,17 @@ These reuse the refit-plan and event-guard lessons:
 ## 7. Saves and Ironman
 
 - **No forced save in normal campaigns.** The operator keeps "reload my last save" as an undo. The game saves at its usual points, and the cheat marker goes with the next one.
+- **Save-state awareness** (operator requirement, 2026-10-06). The game autosaves for many unrelated reasons (contract accepted or completed, arrival, events, the quarterly report), so "reload is undo" lasts only until the next save of any kind. BTBridge tracks saves:
+  - a prefix on `TriggerSaveNow(reason, ...)` records the requested reason;
+  - a postfix on `SimGameState.Dehydrate` marks the moment the campaign state was actually written into a save, whatever the path, manual saves included.
+
+  Every executed cheat's audit record carries:
+  - **`save_state`**: `clean` if no cheat was unsaved before this one, `dirty` if earlier cheats were also still unsaved; plus `last_save_utc` and `last_save_reason`;
+  - **`persistence`**: `"unsaved: the next save of any kind (including an autosave) will make this permanent; reload a save from before last_save_utc to undo"`.
+
+  When the next `Dehydrate` happens, BTBridge appends a **`persisted`** audit record listing every plan id that became permanent, with the save reason and time.
+
+  `GET /cheat/status` shows the unsaved cheat count and the last save, so the operator can decide to reload before the game autosaves.
 - An optional `save_after: true` on execute calls `TriggerSaveNow(SaveReason.MANUAL, QUEUE_IF_NEEDED)` for operators who want it locked in.
 - **Ironman** (`sim.IsIronmanCampaign`): the single-slot autosave would make cheats irreversible, so cheats are **refused outright** in Ironman campaigns. There is no override setting.
   - Both preview and execute return `403 cheats are not available in Ironman campaigns`.
@@ -168,6 +185,11 @@ Pure logic, in `BTBridge.Logic`, tested in `BTBridge.Tests` and mutation-checked
 - **Plan ledger:**
   - Single use, and replay returns the original result.
   - Expiry; a fingerprint mismatch is rejected.
+  - A different campaign id or load epoch is rejected.
+- **Save tracker:**
+  - `clean` → `dirty` transitions.
+  - Persistence records list exactly the cheats executed since the previous save.
+  - A save with no unsaved cheats records nothing.
 - **Value guards:** funds overflow, the debt floor, count caps, removal ≤ count, bay range and occupancy.
 - **Audit records:** required fields present; before/after captured.
 - **Route registration:** `Routes.Build(cheatsEnabled:false)` contains no `/cheat/` paths, and `Build(true)` contains exactly the documented set. Building routes doesn't touch the game, so this runs in the test project.

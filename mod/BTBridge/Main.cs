@@ -10,6 +10,13 @@ namespace BTBridge
     {
         public int Port = 8787;
         public int MainThreadTimeoutMs = 5000;
+
+        // OPERATOR CHEAT LAYER (docs/CHEATS_DESIGN.md). Off unless enabled here or with
+        // --btbridge-allow-cheats; read once at startup.
+        public bool AllowCheats;
+        public int CheatArmMinutes = 15;
+        public int CheatArmMaxOps;
+        public string CheatArmHotkey = "Ctrl+Shift+F9";
     }
 
     public static class Main
@@ -29,8 +36,14 @@ namespace BTBridge
             try
             {
                 Settings = LoadSettings(settingsJson);
+                Cheats.CheatConfig.Init(Settings.AllowCheats, Settings.CheatArmMinutes, Settings.CheatArmMaxOps, Settings.CheatArmHotkey);
+                Cheats.CheatService.Init(modDir);
                 HarmonyInstance.Create("hexylab.btbridge").PatchAll(Assembly.GetExecutingAssembly());
-                server = new BridgeServer(Settings.Port, Routes.Build());
+                if (Cheats.CheatConfig.Capability)
+                {
+                    Cheats.CheatOverlay.Create();
+                }
+                server = new BridgeServer(Settings.Port, Routes.Build(Cheats.CheatConfig.Capability));
                 server.Start();
                 Log.Info($"BTBridge {Version} initialized; listening on 127.0.0.1:{Settings.Port}");
             }
@@ -50,6 +63,10 @@ namespace BTBridge
             var obj = JObject.Parse(json);
             settings.Port = obj.Value<int?>("Port") ?? settings.Port;
             settings.MainThreadTimeoutMs = obj.Value<int?>("MainThreadTimeoutMs") ?? settings.MainThreadTimeoutMs;
+            settings.AllowCheats = obj.Value<bool?>("AllowCheats") ?? false;
+            settings.CheatArmMinutes = obj.Value<int?>("CheatArmMinutes") ?? settings.CheatArmMinutes;
+            settings.CheatArmMaxOps = obj.Value<int?>("CheatArmMaxOps") ?? settings.CheatArmMaxOps;
+            settings.CheatArmHotkey = obj.Value<string>("CheatArmHotkey") ?? settings.CheatArmHotkey;
             return settings;
         }
     }

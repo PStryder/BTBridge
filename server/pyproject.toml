@@ -13,6 +13,8 @@ dependencies = [
 
 [project.scripts]
 btai-mcp = "btai.server:main"
+# Operator cheat layer: a separate server, registered only by choice (docs/CHEATS_DESIGN.md).
+btai-cheats-mcp = "btai.cheats:main"
 
 [build-system]
 requires = ["uv_build>=0.9.18,<0.10.0"]

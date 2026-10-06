@@ -107,6 +107,20 @@ Every build-taking route uses the game's mechdef shape: `{"ChassisID", "Location
 
 Several of these mirror a screen that does its own checks. Where the underlying game method doesn't validate anything, the bridge repeats those checks: hiring, limited-stock purchases, Argo requirements, salvage caps, and event double-submits. See [docs/CAMPAIGN_INTERNALS.md](docs/CAMPAIGN_INTERNALS.md).
 
+### Operator cheat layer (off by default)
+
+There's a separate, gated tier for explicit operator requests such as "give the company 250M C-bills" or "put an Atlas in bay 3". [docs/CHEATS_DESIGN.md](docs/CHEATS_DESIGN.md) has the full design. Three layers gate it:
+1. **Capability (restart required):** launch with `--btbridge-allow-cheats` (Steam launch options), or set `"AllowCheats": true` in `mod.json`. Without it, the `/cheat/*` routes don't exist.
+2. **Arming (human only):** **Ctrl+Shift+F9** in-game opens a window (15 minutes by default). While armed, a red banner shows the time left. **Ctrl+Shift+F10** opens the settings panel (window length, operation budget, hotkey rebind). No API can arm or reconfigure.
+3. **A separate MCP server:** `btai-cheats-mcp`. Register it only if you want it:
+   ```json
+   "battletech-cheats": { "command": "uv", "args": ["run", "--directory", "server", "btai-cheats-mcp"] }
+   ```
+
+Every cheat is preview → execute, with a single-use plan bound to the campaign, this load of it, and the before-state. Each execution writes `cheats_audit.jsonl` (next to the DLL) with before/after values, the quoted operator request, and the save state. The campaign gets a visible marker. Cheats are **refused outright in Ironman** campaigns.
+
+v1 operations: add/remove C-bills, add/remove components, add a mech to a bay or to storage, and finish mechlab work, the Argo upgrade, or medbay recovery now.
+
 ### Combat routes
 
 | Route | Returns |

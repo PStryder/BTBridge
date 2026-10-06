@@ -20,4 +20,18 @@
     <ProjectReference Include="..\BTBridge\BTBridge.csproj" />
   </ItemGroup>
 
+  <!-- Route-table tests load BTBridge types whose signatures mention game types, so the game
+       assemblies are copied next to the tests. No game code is executed. -->
+  <PropertyGroup>
+    <ManagedDir>$(GameDir)\BattleTech_Data\Managed</ManagedDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp"><HintPath>$(ManagedDir)\Assembly-CSharp.dll</HintPath><Private>true</Private></Reference>
+    <Reference Include="Assembly-CSharp-firstpass"><HintPath>$(ManagedDir)\Assembly-CSharp-firstpass.dll</HintPath><Private>true</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(ManagedDir)\0Harmony.dll</HintPath><Private>true</Private></Reference>
+    <Reference Include="Newtonsoft.Json"><HintPath>$(ManagedDir)\Newtonsoft.Json.dll</HintPath><Private>true</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(ManagedDir)\UnityEngine.dll</HintPath><Private>true</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(ManagedDir)\UnityEngine.CoreModule.dll</HintPath><Private>true</Private></Reference>
+  </ItemGroup>
+
 </Project>

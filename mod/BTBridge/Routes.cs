@@ -13,7 +13,35 @@ namespace BTBridge
 {
     public static class Routes
     {
-        public static List<Route> Build() => new List<Route>
+        /// <summary>
+        /// The route table. Cheat routes are added only when the cheat capability was enabled at
+        /// startup; otherwise they do not exist (404 like any unknown path).
+        /// </summary>
+        public static List<Route> Build(bool cheats)
+        {
+            var routes = Core();
+            if (cheats)
+            {
+                routes.AddRange(CheatRoutes());
+            }
+            return routes;
+        }
+
+        /// <summary>OPERATOR CHEAT LAYER routes. There is deliberately no route to arm or reconfigure.</summary>
+        public static List<Route> CheatRoutes() => new List<Route>
+        {
+            new Route { Method = "GET", Path = "/cheat/status", Handler = r => Cheats.CheatService.Status() },
+            new Route { Method = "POST", Path = "/cheat/preview", Handler = r =>
+                {
+                    var b = Body(r);
+                    return Cheats.CheatService.Preview(b.Value<string>("op"), b["args"] as JObject, b.Value<string>("operator_request"));
+                } },
+            new Route { Method = "POST", Path = "/cheat/execute", Handler = r => Cheats.CheatService.Execute(Body(r).Value<string>("plan_id")) },
+            new Route { Method = "POST", Path = "/cheat/disarm", Handler = r => Cheats.CheatService.Disarm() },
+            new Route { Method = "GET", Path = "/cheat/audit", Handler = r => Cheats.CheatService.AuditTail(int.TryParse(r.QueryOr("limit", ""), out var n) ? n : 20) },
+        };
+
+        private static List<Route> Core() => new List<Route>
         {
             new Route { Method = "GET", Path = "/health", Handler = Health },
 
