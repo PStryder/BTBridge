@@ -16,6 +16,7 @@ namespace BTBridge.Patches
             {
                 MainThread.Pump();
                 Combat.Briefing.Tick();
+                Sim.SimTicks.Tick();
             }
             catch (Exception e)
             {

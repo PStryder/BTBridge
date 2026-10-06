@@ -4,6 +4,7 @@ using BattleTech;
 using BTBridge.Bridge;
 using BTBridge.Combat;
 using BTBridge.Patches;
+using BTBridge.Sim;
 using BTBridge.State;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -37,6 +38,81 @@ namespace BTBridge
             new Route { Method = "DELETE", Path = "/skirmish/mechs", Handler = r => Skirmish.DeleteMech(r.QueryOr("id", null)) },
             new Route { Method = "POST", Path = "/skirmish/lances", Handler = SkirmishSaveLance },
             new Route { Method = "DELETE", Path = "/skirmish/lances", Handler = r => Skirmish.DeleteLance(r.QueryOr("id", null)) },
+
+            // campaign: status, interrupts, time
+            new Route { Method = "GET", Path = "/sim/status", Handler = r => Interrupts.Status(RequireSim()) },
+            new Route { Method = "GET", Path = "/sim/interrupt", Handler = r => Interrupts.Describe(RequireSim()) },
+            new Route { Method = "POST", Path = "/sim/interrupt", Handler = r => Interrupts.Resolve(RequireSim(), Body(r)) },
+            new Route { Method = "POST", Path = "/sim/time", Handler = r =>
+                {
+                    var b = Body(r);
+                    if (b.Value<bool?>("stop") == true)
+                    {
+                        return TimeControl.Stop(RequireSim());
+                    }
+                    return TimeControl.Start(RequireSim(), b.Value<int?>("days"), b.Value<bool?>("until_event") ?? false, b.Value<float?>("day_seconds"));
+                } },
+
+            // campaign: contracts and missions
+            new Route { Method = "GET", Path = "/sim/contracts", Handler = r => Contracts.List(RequireSim()) },
+            new Route { Method = "POST", Path = "/sim/contracts/accept", Handler = r =>
+                {
+                    var b = Body(r);
+                    return Contracts.Accept(RequireSim(), b.Value<int?>("index") ?? -1, b.Value<string>("name"), b.Value<float?>("pay"), b.Value<float?>("salvage"));
+                } },
+            new Route { Method = "POST", Path = "/sim/contracts/launch", Handler = r =>
+                {
+                    var units = (Body(r)["units"] as JArray ?? new JArray())
+                        .Select(u => new Contracts.UnitChoice { Bay = u.Value<int?>("bay"), Pilot = u.Value<string>("pilot") })
+                        .ToList();
+                    return Contracts.Launch(RequireSim(), units);
+                } },
+            new Route { Method = "GET", Path = "/combat/mission", Handler = r => Contracts.MissionEnd(RequireCombat()) },
+            new Route { Method = "POST", Path = "/combat/withdraw", Handler = r => Contracts.Withdraw(RequireCombat()) },
+            new Route { Method = "POST", Path = "/combat/exit", Handler = r => Contracts.ExitMission() },
+            new Route { Method = "GET", Path = "/sim/aar", Handler = r => Contracts.Aar(Game?.Simulation) },
+            new Route { Method = "POST", Path = "/sim/aar", Handler = r =>
+                {
+                    var b = Body(r);
+                    return Contracts.AarContinue(Game?.Simulation, b["salvage"] as JArray);
+                } },
+
+            // campaign: navigation
+            new Route { Method = "GET", Path = "/sim/starmap", Handler = r => Navigation.Map(RequireSim(), int.TryParse(r.QueryOr("jumps", ""), out var j) ? j : 2) },
+            new Route { Method = "GET", Path = "/sim/travel", Handler = r => Navigation.View(RequireSim()) },
+            new Route { Method = "POST", Path = "/sim/travel", Handler = r =>
+                {
+                    var b = Body(r);
+                    return Navigation.Travel(RequireSim(), b.Value<string>("system"), b.Value<bool?>("confirm") ?? false);
+                } },
+
+            // campaign: company
+            new Route { Method = "GET", Path = "/sim/pilots", Handler = r => Company.Pilots(RequireSim()) },
+            new Route { Method = "POST", Path = "/sim/pilots/train", Handler = r =>
+                {
+                    var b = Body(r);
+                    return Company.Train(RequireSim(), b.Value<string>("pilot"), b.Value<string>("skill"), b.Value<int?>("to") ?? 0, b.Value<bool?>("confirm") ?? false);
+                } },
+            new Route { Method = "GET", Path = "/sim/hiring", Handler = r => Company.HiringHall(RequireSim()) },
+            new Route { Method = "POST", Path = "/sim/pilots/hire", Handler = r => Company.Hire(RequireSim(), Body(r).Value<string>("id")) },
+            new Route { Method = "POST", Path = "/sim/pilots/dismiss", Handler = r => Company.Dismiss(RequireSim(), Body(r).Value<string>("pilot")) },
+            new Route { Method = "GET", Path = "/sim/store", Handler = r => Company.Store(RequireSim(), r.QueryOr("shop", "system")) },
+            new Route { Method = "GET", Path = "/sim/store/sellable", Handler = r => Company.Sellables(RequireSim(), r.QueryOr("shop", "system")) },
+            new Route { Method = "POST", Path = "/sim/store/buy", Handler = r =>
+                {
+                    var b = Body(r);
+                    return Company.Buy(RequireSim(), b.Value<string>("shop"), b.Value<string>("id"), b.Value<int?>("count") ?? 1);
+                } },
+            new Route { Method = "POST", Path = "/sim/store/sell", Handler = r =>
+                {
+                    var b = Body(r);
+                    return Company.Sell(RequireSim(), b.Value<string>("shop"), b.Value<string>("id"), b.Value<string>("type"), b.Value<int?>("count") ?? 1);
+                } },
+            new Route { Method = "GET", Path = "/sim/argo", Handler = r => Company.Argo(RequireSim()) },
+            new Route { Method = "POST", Path = "/sim/argo/upgrade", Handler = r => Company.BuyUpgrade(RequireSim(), Body(r).Value<string>("id")) },
+            new Route { Method = "GET", Path = "/sim/finances", Handler = r => Company.Finances(RequireSim()) },
+            new Route { Method = "GET", Path = "/sim/flashpoints", Handler = r => Company.Flashpoints(RequireSim()) },
+            new Route { Method = "POST", Path = "/sim/flashpoints/accept", Handler = r => Company.AcceptFlashpoint(RequireSim(), Body(r).Value<string>("id")) },
 
             // combat
             new Route { Method = "GET", Path = "/combat/control", Handler = r => ControlView() },

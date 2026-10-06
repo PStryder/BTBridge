@@ -31,19 +31,22 @@ How the game works inside, and why the hooks sit where they do, is covered in [d
 |---|---|
 | Offline catalog: components, chassis, stock mechs | working and tested against the installed data |
 | Offline build pre-check: tonnage, slots, hardpoints, armor, jump jets, ammo | working; passes every regular stock mech; each rule mutation-tested |
-| MCP server (31 tools) | working; the live tools report clearly when the game isn't reachable |
+| MCP server (61 tools) | working; the live tools report clearly when the game isn't reachable |
 | BTBridge mod: read endpoints | verified in-game (career): company, mechbay, storage, live mechlab |
 | Writes: live validation, campaign refit preview/apply, skirmish mechs/lances | verified in-game: armor, removal, move, install-from-storage refits complete correctly |
 | Combat: decision hook, accept/move/attack/brace orders | verified in-game (skirmish, agent commanding the player lance): waits indefinitely, move→attack stages, melee, indirect fire, Ace Pilot shoot-then-move |
 | Combat: move snapping, unit-guarded answers, reachable query | built after the first skirmish; compiles, not yet run in-game |
 | Combat: side briefing, standing orders, activation order, enemy-side control | built; compiles, not yet run in-game |
-| Campaign layer: contracts, travel, time/events, pilots, store | researched; see docs/CAMPAIGN_INTERNALS.md for findings and build plan |
+| Campaign layer: status/interrupts, time, contracts→launch→AAR/salvage, navigation, pilots, hiring, store, Argo, finances, flashpoints | built; pure rules unit-tested and mutation-checked, compiles; **not yet run in-game** |
 
 ## Build and test
 
 ```bash
 # mod (builds against the installed game; override with -p:GameDir=...)
 cd mod/BTBridge && dotnet build -c Release      # -> bin/Release/BTBridge.dll + mod.json
+
+# rule tests (pure logic; runs on .NET Framework 4.7.2, no game needed)
+cd mod/BTBridge.Tests && dotnet test
 
 # server
 cd server && uv run pytest -q
@@ -86,6 +89,23 @@ Every response is `{"ok": true, "data": ...}` or `{"ok": false, "error": "..."}`
 | `POST /skirmish/lances`, `DELETE /skirmish/lances?id=` | save a lance (1 to 4 `{mech_id, pilot_id}`) / delete one |
 
 Every build-taking route uses the game's mechdef shape: `{"ChassisID", "Locations": [{"Location", "AssignedArmor", "AssignedRearArmor"}], "inventory": [{"ComponentDefID", "MountedLocation"}]}`. Fixed equipment is left out because the chassis supplies it.
+
+### Campaign routes
+
+| Route | Purpose |
+|---|---|
+| `GET /sim/status` | whether the campaign is idle, with blockers, room, date, funds, and any running time / launch / travel job |
+| `GET/POST /sim/interrupt` | read and answer whatever is waiting: events, notifications, quarterly report, rewards, mech placement, conversations |
+| `POST /sim/time` | `{days}` or `{until_event: true}`, optional `day_seconds`; `{stop: true}` stops |
+| `GET /sim/contracts`, `POST /sim/contracts/accept`, `POST /sim/contracts/launch` | list contracts; accept with negotiated pay/salvage; drop with `[{bay, pilot}]` |
+| `GET /combat/mission`, `POST /combat/withdraw`, `POST /combat/exit` | mission end state; retreat; leave the end screen |
+| `GET/POST /sim/aar` | after-action stages; priority salvage picks |
+| `GET /sim/starmap?jumps=`, `GET/POST /sim/travel` | neighbouring systems; route preview, then `confirm` to travel |
+| `GET /sim/pilots`, `POST /sim/pilots/train`, `GET /sim/hiring`, `POST /sim/pilots/hire`, `POST /sim/pilots/dismiss` | barracks (training previews first); hiring hall |
+| `GET /sim/store?shop=`, `GET /sim/store/sellable`, `POST /sim/store/buy`, `POST /sim/store/sell` | system, faction and black-market shops |
+| `GET /sim/argo`, `POST /sim/argo/upgrade`, `GET /sim/finances`, `GET /sim/flashpoints`, `POST /sim/flashpoints/accept` | ship upgrades, money, reputation, flashpoints |
+
+Several of these mirror a screen that does its own checks. Where the underlying game method doesn't validate anything, the bridge repeats those checks: hiring, limited-stock purchases, Argo requirements, salvage caps, and event double-submits. See [docs/CAMPAIGN_INTERNALS.md](docs/CAMPAIGN_INTERNALS.md).
 
 ### Combat routes
 

@@ -23,7 +23,11 @@ mcp = MCPServer(
         "Tools for HBS BattleTech. catalog_* and check_mech_build work offline from game data. "
         "Live tools (game_status, campaign_*, mechlab_current, validate_mech_build, skirmish_*) need the game "
         "running with the BTBridge mod; call game_status first. Live data includes DLC content the offline "
-        "catalog lacks. Builds use one mechdef format everywhere: get one from campaign_mech / mechlab_current "
+        "catalog lacks. Campaign: call sim_status first; if not idle, sim_interrupt / sim_answer_interrupt. "
+        "Mission loop: contracts_list -> contract_accept -> contract_launch -> combat -> mission_exit -> "
+        "aar_continue (salvage). Irreversible or costly actions (purchases, hiring, dismissal, refits, "
+        "permanent pilot abilities) should be confirmed with the player. "
+        "Builds use one mechdef format everywhere: get one from campaign_mech / mechlab_current "
         "(`spec`) or catalog_get_stock_mech, edit it, then validate. Campaign refits are two-step: "
         "campaign_refit_preview, show the player the plan, and campaign_refit_apply only on their explicit OK."
     ),
@@ -252,6 +256,221 @@ def skirmish_save_lance(name: str, units: list[dict], replace_id: str | None = N
 def skirmish_delete_lance(lance_id: str) -> dict:
     """Delete a custom skirmish lance."""
     return _live(f"/skirmish/lances?id={quote(lance_id)}", method="DELETE")
+
+
+# -- campaign: status, interrupts, time -----------------------------------------
+
+
+@mcp.tool()
+def sim_status() -> dict:
+    """START HERE in the campaign. Is the game idle and waiting for you? Lists blockers (an interrupt
+    waiting, time moving, travel animating, mechlab open...), room, date, funds, and any running
+    time / launch / travel job."""
+    return _live("/sim/status")
+
+
+@mcp.tool()
+def sim_interrupt() -> dict:
+    """What is waiting for an answer: an event (options with availability), a notification, the
+    quarterly report (expense levels with cost and morale), a rewards popup, a mech placement
+    prompt, a story conversation... Each comes with the answer shapes it accepts."""
+    return _live("/sim/interrupt")
+
+
+@mcp.tool()
+def sim_answer_interrupt(answer: dict) -> dict:
+    """Answer the waiting interrupt, e.g. {"option": 1} for an event (then {"choice": "dismiss"} once
+    the result shows), {"choice": "primary" | "secondary"} for a notification, {"expense_level":
+    "Normal"} for the quarterly report, {"choice": "collect"} for rewards, {"action": "store"} for
+    mech placement, {"response": i} / {"choice": "continue"} in a conversation."""
+    return _live("/sim/interrupt", answer)
+
+
+@mcp.tool()
+def sim_run_time(days: int | None = None, until_event: bool = False, day_seconds: float | None = None) -> dict:
+    """Let campaign time run: `days` (1-365) or until the next event/interrupt. Any interrupt pauses
+    time on its own; answer it and call again to continue the same job. day_seconds speeds days
+    up (min 0.1)."""
+    body = {"days": days, "until_event": until_event}
+    if day_seconds is not None:
+        body["day_seconds"] = day_seconds
+    return _live("/sim/time", body)
+
+
+@mcp.tool()
+def sim_stop_time() -> dict:
+    """Stop campaign time and cancel the running time job."""
+    return _live("/sim/time", {"stop": True})
+
+
+# -- campaign: contracts & missions ---------------------------------------------
+
+
+@mcp.tool()
+def contracts_list() -> dict:
+    """Contracts available here: type, difficulty (half-skulls), employer/target, pay and salvage,
+    whether terms are negotiable, lance limits, map, travel requirement, expiry, reputation gate.
+    The first call in a new system may report `generating`; call again."""
+    return _live("/sim/contracts")
+
+
+@mcp.tool()
+def contract_accept(index: int, name: str, pay: float = 0.5, salvage: float | None = None) -> dict:
+    """Accept contract `index` (name must match, to catch a changed list) with negotiated terms as
+    fractions of the maximum: pay + salvage <= 1 and the remainder is reputation (for employers
+    that give reputation; otherwise salvage = 1 - pay). Travel-only contracts start the trip."""
+    return _live("/sim/contracts/accept", {"index": index, "name": name, "pay": pay, "salvage": salvage})
+
+
+@mcp.tool()
+def contract_launch(units: list[dict]) -> dict:
+    """Drop on the accepted contract with your lance: [{"bay": n, "pilot": callsign_or_guid}, ...].
+    Checked against the contract's per-slot and lance tonnage limits, mech fieldability and pilot
+    injuries; the game's own launch flow then runs. Combat follows (see combat_* tools)."""
+    return _live("/sim/contracts/launch", {"units": units})
+
+
+@mcp.tool()
+def mission_status() -> dict:
+    """Whether the current mission is over and how, and whether the end screen is showing."""
+    return _live("/combat/mission")
+
+
+@mcp.tool()
+def mission_withdraw() -> dict:
+    """Withdraw (retreat) from the current mission. Not allowed on priority/story missions."""
+    return _live("/combat/withdraw", {})
+
+
+@mcp.tool()
+def mission_exit() -> dict:
+    """Leave the mission end screen for the after-action report."""
+    return _live("/combat/exit", {})
+
+
+@mcp.tool()
+def aar_status() -> dict:
+    """The after-action report: stage (contract results, lance results, salvage), payout, XP, and in
+    the salvage stage the potential salvage with the number of priority picks allowed."""
+    return _live("/sim/aar")
+
+
+@mcp.tool()
+def aar_continue(salvage: list[dict] | None = None) -> dict:
+    """Advance the after-action report. In the salvage stage pass your priority picks:
+    [{"id": ..., "damaged": false}, ...] (up to the allowed count); the rest is drawn by the game."""
+    return _live("/sim/aar", {"salvage": salvage or []})
+
+
+# -- campaign: navigation --------------------------------------------------------
+
+
+@mcp.tool()
+def starmap(jumps: int = 2) -> dict:
+    """Systems within `jumps` hops: owner, shops you can use, known contracts, flashpoints,
+    planet tags, and whether you meet travel requirements."""
+    return _live(f"/sim/starmap?jumps={jumps}")
+
+
+@mcp.tool()
+def travel(system_id: str, confirm: bool = False) -> dict:
+    """Route to a system. confirm=false previews (days and cost via travel_status); confirm=true
+    commits the trip, after which run time (sim_run_time) to travel. Arrival raises an interrupt."""
+    return _live("/sim/travel", {"system": system_id, "confirm": confirm})
+
+
+@mcp.tool()
+def travel_status() -> dict:
+    """The current route job (routing / previewed / travelling) with days and cost, and travel state."""
+    return _live("/sim/travel")
+
+
+# -- campaign: company -----------------------------------------------------------
+
+
+@mcp.tool()
+def pilots() -> dict:
+    """Your MechWarriors: skills, unspent XP, health/injuries, abilities, salary."""
+    return _live("/sim/pilots")
+
+
+@mcp.tool()
+def pilot_train(pilot: str, skill: str, to: int, confirm: bool = False) -> dict:
+    """Raise a pilot's Gunnery/Piloting/Guts/Tactics to `to` with unspent XP. confirm=false previews
+    the XP cost and abilities gained (primary abilities are permanent); confirm=true applies."""
+    return _live("/sim/pilots/train", {"pilot": pilot, "skill": skill, "to": to, "confirm": confirm})
+
+
+@mcp.tool()
+def hiring_hall() -> dict:
+    """Pilots for hire in this system, with skills, hiring cost and salary."""
+    return _live("/sim/hiring")
+
+
+@mcp.tool()
+def hire_pilot(pilot_def_id: str) -> dict:
+    """Hire a pilot from the hiring hall (roster space, MRB, morale and funds are checked)."""
+    return _live("/sim/pilots/hire", {"id": pilot_def_id})
+
+
+@mcp.tool()
+def dismiss_pilot(pilot: str) -> dict:
+    """Dismiss a pilot (not the commander). Irreversible: confirm with the player first."""
+    return _live("/sim/pilots/dismiss", {"pilot": pilot})
+
+
+@mcp.tool()
+def store(shop: str = "system") -> dict:
+    """A shop's stock with prices: shop = system | faction | black_market."""
+    return _live(f"/sim/store?shop={quote(shop)}")
+
+
+@mcp.tool()
+def store_sellable(shop: str = "system") -> dict:
+    """What you could sell to a shop from storage."""
+    return _live(f"/sim/store/sellable?shop={quote(shop)}")
+
+
+@mcp.tool()
+def store_buy(item_id: str, shop: str = "system", count: int = 1) -> dict:
+    """Buy items. Bought 'Mechs arrive via a notification interrupt that must be answered to place them."""
+    return _live("/sim/store/buy", {"shop": shop, "id": item_id, "count": count})
+
+
+@mcp.tool()
+def store_sell(item_id: str, shop: str = "system", count: int = 1, item_type: str | None = None) -> dict:
+    """Sell items from storage to a shop (mech parts can't be sold)."""
+    return _live("/sim/store/sell", {"shop": shop, "id": item_id, "count": count, "type": item_type})
+
+
+@mcp.tool()
+def argo_upgrades() -> dict:
+    """Argo upgrades owned, building, and available (price, added monthly cost, requirements)."""
+    return _live("/sim/argo")
+
+
+@mcp.tool()
+def argo_upgrade(upgrade_id: str) -> dict:
+    """Start building an Argo upgrade (one at a time)."""
+    return _live("/sim/argo/upgrade", {"id": upgrade_id})
+
+
+@mcp.tool()
+def finances() -> dict:
+    """Funds, quarterly expenses, days left in the quarter, expense level, morale, MRB level, reputation."""
+    return _live("/sim/finances")
+
+
+@mcp.tool()
+def flashpoints() -> dict:
+    """Active and available flashpoints (multi-mission chains), with system and time remaining."""
+    return _live("/sim/flashpoints")
+
+
+@mcp.tool()
+def flashpoint_accept(flashpoint_id: str) -> dict:
+    """Accept a flashpoint. Its milestone choices then arrive as ordinary event interrupts."""
+    return _live("/sim/flashpoints/accept", {"id": flashpoint_id})
 
 
 # -- combat ---------------------------------------------------------------------

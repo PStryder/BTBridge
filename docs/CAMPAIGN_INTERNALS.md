@@ -4,7 +4,7 @@ These are research notes from the decompile of v1.9.1, for the campaign layer be
 - `SGS` = `BattleTech/SimGameState.cs` (about 13.7k lines)
 - `SIM` = `BattleTech.UI/SimGameInterruptManager.cs`
 
-**Status: researched, not built.** Line numbers are approximate pointers into one decompile run. Anything marked *(untested)* was inferred from code, not seen in-game.
+**Status: built (BTBridge `Sim/` + `Logic/`), compiles, rule tests pass; not yet run in-game.** Line numbers are approximate pointers into one decompile run. Anything marked *(untested)* was inferred from code, not seen in-game.
 
 All calls run on Unity's main thread, through the bridge's existing pump.
 
