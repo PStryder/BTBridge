@@ -388,10 +388,16 @@ def combat_dialog() -> dict:
 
 
 @mcp.tool()
-def dialog_transcript(limit: int = 50) -> list | dict:
-    """Every dialogue line shown recently (mission chatter and campaign conversations), oldest
-    first, with speaker and where it appeared. Lines are kept even if they were clicked through."""
-    return _live(f"/dialog/transcript?limit={limit}")
+def dialog_transcript(limit: int = 50, repeats: bool = False, since_id: int = 0) -> list | dict:
+    """Dialogue lines shown recently, oldest first, kept even if clicked through or auto-faded.
+
+    channel "dialog" = blocking conversation (Continue button); "radio" = voiced mission chatter
+    (Darius, pilot barks). Lines already shown earlier this session are dropped unless repeats=True;
+    times_seen counts them. Pass since_id = the last id you read to get only new lines."""
+    q = f"/dialog/transcript?limit={limit}&since={since_id}"
+    if repeats:
+        q += "&repeats=true"
+    return _live(q)
 
 
 @mcp.tool()

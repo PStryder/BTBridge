@@ -24,16 +24,40 @@ namespace BTBridge.Combat
         // conversations), so lines that auto-advance or are clicked through quickly aren't lost.
         private const int TranscriptSize = 50;
         private static readonly object TranscriptLock = new object();
-        private static readonly System.Collections.Generic.List<object> Transcript = new System.Collections.Generic.List<object>();
+        private static readonly System.Collections.Generic.List<Line> Transcript = new System.Collections.Generic.List<Line>();
         private static int lineId;
+        // How often each (speaker, text) has been shown this session; radio barks repeat a lot.
+        private static readonly System.Collections.Generic.Dictionary<string, int> Seen =
+            new System.Collections.Generic.Dictionary<string, int>();
 
-        public static void Record(string speaker, string text, bool endOfConvo)
+        private sealed class Line
+        {
+            public int id;
+            public string utc;
+            public string where;
+            public string channel;
+            public string speaker;
+            public string text;
+            public bool? end_of_conversation;
+            public int times_seen;
+        }
+
+        /// <param name="channel">"dialog" (blocking, Continue button) or "radio" (voiced side-panel chatter).</param>
+        public static void Record(string speaker, string text, bool? endOfConvo, string channel = "dialog")
         {
             var now = DateTime.UtcNow;
             var where = UnityGameInstance.BattleTechGame?.Combat != null ? "mission" : "campaign";
-            var entry = new { id = ++lineId, utc = now.ToString("o"), where, speaker, text, end_of_conversation = endOfConvo };
+            Line entry;
             lock (TranscriptLock)
             {
+                string key = speaker + "\u0001" + text;
+                Seen.TryGetValue(key, out int n);
+                Seen[key] = ++n;
+                entry = new Line
+                {
+                    id = ++lineId, utc = now.ToString("o"), where = where, channel = channel, speaker = speaker, text = text,
+                    end_of_conversation = endOfConvo, times_seen = n,
+                };
                 Transcript.Add(entry);
                 if (Transcript.Count > TranscriptSize)
                 {
@@ -54,11 +78,15 @@ namespace BTBridge.Combat
             }
         }
 
-        public static object TranscriptView(int limit)
+        /// <param name="repeats">false drops lines already shown earlier this session (stock barks
+        /// like "Target destroyed"); each kept line still carries times_seen.</param>
+        public static object TranscriptView(int limit, bool repeats = false, int sinceId = 0)
         {
             lock (TranscriptLock)
             {
-                return Transcript.Skip(Math.Max(0, Transcript.Count - Math.Max(1, Math.Min(limit, TranscriptSize)))).ToList();
+                var lines = Transcript.Where(l => l.id > sinceId && (repeats || l.times_seen == 1)).ToList();
+                int take = Math.Max(1, Math.Min(limit, TranscriptSize));
+                return lines.Skip(Math.Max(0, lines.Count - take)).ToList();
             }
         }
 
@@ -72,7 +100,7 @@ namespace BTBridge.Combat
             text = Waiting ? Text : null,
             last_line = Waiting ? (bool?)EndOfConversation : null,
             answer = Waiting ? "POST /combat/dialog/continue" : null,
-            recent = TranscriptView(10),
+            recent = TranscriptView(10, repeats: true),
         };
 
         public static object Continue()
@@ -114,6 +142,43 @@ namespace BTBridge.Combat
             catch (Exception e)
             {
                 Log.Warn("dialog capture failed: " + e.Message);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Voiced, non-blocking mission chatter (Darius on the radio, pilot barks) shown in the combat
+    /// HUD's side and front dialog stacks. Every such line ends in CombatHUDDialogItem.Show.
+    /// </summary>
+    [HarmonyPatch(typeof(CombatHUDDialogItem), "Show")]
+    public static class CaptureRadioLine
+    {
+        public static void Postfix(string dialogText, string speakerName)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(dialogText))
+                {
+                    return;
+                }
+                string line = dialogText;
+                var ctx = UnityGameInstance.BattleTechGame?.Combat?.ActiveContract?.GameContext;
+                try
+                {
+                    if (ctx != null)
+                    {
+                        line = Interpolator.Interpolate(dialogText, ctx, true);
+                    }
+                }
+                catch
+                {
+                    // Keep the raw template if interpolation fails.
+                }
+                MissionDialog.Record(speakerName, line, null, "radio");
+            }
+            catch (Exception e)
+            {
+                Log.Warn("radio capture failed: " + e.Message);
             }
         }
     }

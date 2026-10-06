@@ -110,7 +110,10 @@ namespace BTBridge
             new Route { Method = "POST", Path = "/combat/begin", Handler = r => Contracts.BeginMission() },
             new Route { Method = "GET", Path = "/combat/dialog", Handler = r => MissionDialog.View() },
             new Route { Method = "POST", Path = "/combat/dialog/continue", Handler = r => MissionDialog.Continue() },
-            new Route { Method = "GET", Path = "/dialog/transcript", Handler = r => MissionDialog.TranscriptView(int.TryParse(r.QueryOr("limit", ""), out var lim) ? lim : 50) },
+            new Route { Method = "GET", Path = "/dialog/transcript", Handler = r => MissionDialog.TranscriptView(
+                int.TryParse(r.QueryOr("limit", ""), out var lim) ? lim : 50,
+                r.QueryOr("repeats", "false") == "true",
+                int.TryParse(r.QueryOr("since", ""), out var since) ? since : 0) },
             new Route { Method = "POST", Path = "/combat/withdraw", Handler = r => Contracts.Withdraw(RequireCombat()) },
             new Route { Method = "POST", Path = "/combat/exit", Handler = r => Contracts.ExitMission() },
             new Route { Method = "GET", Path = "/sim/aar", Handler = r => Contracts.Aar(Game?.Simulation) },
