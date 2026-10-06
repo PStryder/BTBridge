@@ -206,6 +206,8 @@ In-game (in the combined test session, once built):
    - Panel changes are stored in `PlayerPrefs` under `BTBridge.Cheat.*` and take priority over `mod.json`. "Reset" clears them back to `mod.json`.
    - The panel and its hotkey exist only when the cheat capability is on.
 
+2. **Decided (2026-10-06):** the campaign marker is **on by default**: company tag `btbridge_cheats_used` plus the `BTBRIDGE_CheatOps` counter, added on the first executed cheat.
+
 ## Open questions for the operator
 2. Should the campaign marker (tag + counter) be on by default (recommended), or be a setting?
 3. Ironman: refuse outright, or allow behind the restart-time setting?
