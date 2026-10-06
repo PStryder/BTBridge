@@ -26,7 +26,8 @@ namespace BTBridge.Sim
         private static string job;
         private static bool generating;
         private static object lastResult;
-        private static string salvageFinalizedFor;
+        // By reference: Contract.GUID can be null (found in the career test, where a GUID guard skipped the pick).
+        private static Contract salvageFinalizedFor;
 
         public static object JobView() => job;
 
@@ -425,7 +426,7 @@ namespace BTBridge.Sim
             var screen = (AAR_SalvageScreen)Reflect.Get(mr, "salvageScreen");
             List<SalvageDef> chosen = new List<SalvageDef>();
             // With no priority picks the screen confirms (and finalizes) on its own.
-            if (contract.FinalPrioritySalvageCount >= 1 && salvageFinalizedFor != contract.GUID)
+            if (contract.FinalPrioritySalvageCount >= 1 && !ReferenceEquals(salvageFinalizedFor, contract))
             {
                 var potential = Potential(contract);
                 var wanted = (picks ?? new JArray()).Select(p => new SalvagePick
@@ -448,7 +449,7 @@ namespace BTBridge.Sim
                     chosen.Add(new SalvageDef(potential[i]) { Count = 1 });
                 }
                 // FinalizeSalvage appends and does not cap: exactly once per contract.
-                salvageFinalizedFor = contract.GUID;
+                salvageFinalizedFor = contract;
                 contract.FinalizeSalvage(chosen);
             }
             lastResult = new
