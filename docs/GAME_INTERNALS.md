@@ -47,14 +47,50 @@ The human UI publishes the same invocation types (`SelectionState.PublishInvocat
 
 ## Making the AI drive the player's team
 
-`EncounterLayerData.CreatePlayerOneTeam()` builds `new AITeam(..., substitutingforHuman: true, isMultiplayer)` instead of a human `Team` only when **both** of these are true in `StreamingAssets/data/debug/settings.json`:
+`EncounterLayerData.CreatePlayerOneTeam()` (private) builds `new AITeam(..., substitutingforHuman: true, isMultiplayer)` instead of a human `Team` only when **both** of these are true in `StreamingAssets/data/debug/settings.json`:
 
 ```json
 "testToolsEnabled": true,
 "playerOneIsAIControlled": true
 ```
 
-`testToolsEnabled` turns on other debug behavior as well. Back up the original file before changing it.
+**BTBridge doesn't do this,** because `TestToolsEnabled` touches 84 places: debug stats, AttackDirector effects, save structure. Instead, a prefix on `CreatePlayerOneTeam` returns `new AITeam("Player 1", color, Player1Guid, true, combat, substitutingforHuman: true, isMultiplayer: false)` with `FactionValue = GetPlayer1sMercUnitFactionValue()`.
+- `substitutingforHuman` keeps `PlayerControlsTeam` true. Objective success and failure handling needs it.
+- The method only runs for fresh missions, not for combat loaded from a save. Control modes are latched there.
+
+Things that come with an AI-driven player team:
+- **Behavior tree.** Units spawn with `DoNothingTree`; the real tree is only assigned at spawn when the team is already an AITeam. Fix: `team.SetBehaviorTree(BehaviorTreeIDEnum.CoreAITree)` before activation (prefix on `AITeam.TurnActorProcessActivation`). The tree id is the private field `BehaviorTree.behaviorTreeIDEnum`.
+- **HUD.** `Team.TurnActorProcessActivation` still sets `IsActive`, so `CombatSelectionHandler` would let a human order the same units. Prefix `TrySelectActor` and `AutoSelectActor` to refuse.
+- **Morale and inspiration.** `Team` blocks morale gain for `this is AITeam` unless `MoraleDef.CanAIBeInspired`, so an AI-driven player lance may get less morale. Not handled yet.
+
+## Combat: agent decisions (verified in-game)
+
+- **Activation flow.** One AITeam activation is one unit (`selectCurrentUnit`, private, which can be overridden with a postfix). After a move completes, `think()` asks again for the same unit.
+  - The tree's `IsMovementAvailableForUnitNode` and `IsAttackAvailableForUnitNode` pick the stage. The AI never attacks when not interleaved, i.e. out of combat.
+  - Out of combat, a non-sprint move auto-braces and ends the activation.
+  - Sprinting forfeits the attack.
+- **Ace Pilot.** `AbstractActor.CanMoveAfterShooting` lets a unit fire first and still move. `OrderSequence.ConsumesActivation` stays false, so the next decision is a move stage with `fired = true`. Seen in-game: a Locust fired, then sprinted to 7 evasion pips.
+- **The think clock.** `planningStartTime` is set only at activation start. `Float_MaxThinkSeconds` covers the whole activation, animations included, and when it runs out the unit braces. Restart it while the agent deliberates, via reflection on the private field.
+- **Returning null is safe.** The stock tree itself returns "running" for many frames. In-game, decisions sat open for minutes with no side effects.
+- **Capturing the suggestion.** Postfix `getInvocationForCurrentUnit`, keep its result, and return null. Prefix `makeInvocationFromOrders` (private) to record the `OrderInfo`, which describes the suggestion.
+  - `AbstractActorMovementInvocation` copies its waypoints at construction, so a held suggestion stays valid even if other paths are computed afterwards.
+  - Building the agent's own orders through `makeInvocationFromOrders` (via reflection) keeps the game's exact semantics. That includes the guards that turn an illegal move or attack into a brace.
+  - A team-wide reserve (`ReserveActorInvocation` whose `targetGUID` is the team's GUID) is left to the stock AI.
+- **Movement grids are sparse lattices.** `PathNodeGrid.GetValidPathNodeAt(pos, maxCost)` is an exact-cell lookup and misses almost any arbitrary point. Snap to the nearest of `getGrid(moveType).GetSampledPathNodes()` with `IsValidDestination` and `CostToThisNode` in `[0, budget)`, as the movement UI does (`GetClosestPathNode`).
+  - Budgets are `MaxWalkDistance`, `MaxSprintDistance` and `MaxBackwardDistance`.
+  - Check `Pathing.ArePathGridsComplete` first.
+  - Jumps: snap with `HexGrid.GetClosestPointOnGrid` and `MapMetaData.GetLerpedHeightAt`, then check `JumpPathing.IsValidLandingSpot(pos, allActors)`. `MechJumpInvocation` doesn't validate.
+- **Line of sight isn't line of fire.** `VisibilityLevel.LOSFull` (sensors) can hold while `Combat.LOS.GetLineOfFire(...)` is `LOFBlocked` for the weapon mounts. `Weapon.WillFireAtTarget` requires the unit's own LOS plus LOF, in arc and in range. Seen in-game: a Locust on a ridge saw an enemy at 89 m and couldn't fire, so the stock AI chose melee.
+- **Weapon uids are per unit** (`"0"`, `"1"`, `"3"`...), so the same uid list is valid on several mechs. Orders must name their unit.
+- **The influence map.** `BehaviorTree.influenceMapEvaluator.WorkspaceEvaluationEntries[0..firstFreeWorkspaceEvaluationEntryIndex)` holds the AI's scored positions.
+  - Each entry has `Position`, `Angle`, `GetBestMoveType()`, `GetHighestAccumulator()`, and per-factor `ValuesByFactorName` (`RegularValue * RegularWeight`).
+  - The list is reused, so re-check each entry against the live grids.
+  - Out of combat, the tree produces only one unscored candidate.
+- **Fog of war.** `team.VisibilityCache.VisibilityToTarget(actor).VisibilityLevel` gives a team's view. `Blip*` levels mean position only. `PreviouslyDetectedEnemyUnits` has no stored position, so BTBridge records its own last sighting every 30 frames.
+- **Also useful:**
+  - `HitLocation.GetAttackDirection(attackPos, target)`: which face of the target a shot lands on.
+  - `MapMetaData.GetPriorityDesignMaskAtPos(pos)`: the terrain or cover `DesignMaskDef`, with to-hit, damage-taken, stability and heat-sink modifiers.
+  - `AbstractActor.InitiativeToString(phase)`: the number shown on the initiative bar (stored values are inverted).
 
 ## Campaign mechbay
 

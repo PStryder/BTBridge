@@ -1,18 +1,27 @@
 # battletech-ai
 
-This project lets an AI agent work with HBS BattleTech (2018): read your mechbay and storage, follow along while you build in the mechlab, design its own mechs and lances, and eventually play tactical combat turns.
+This project lets an AI agent work with HBS BattleTech (2018). It can:
+- read your mechbay and storage, and follow along while you build in the mechlab;
+- design and refit mechs and lances;
+- command a lance in tactical combat, on your side or the enemy's.
+
+It works by hooking the game's own logic, not by clicking the UI. Next up: the campaign layer (contracts, travel, events, company management).
 
 ```
-BattleTech (Unity/Mono)
+BattleTech (Unity/Mono, vanilla + ModTek)
  └─ BTBridge mod (C#, Harmony)    mod/BTBridge
      ├─ main-thread pump: postfix on UnityGameInstance.Update
-     ├─ state serializers: mechbay, storage, live mechlab, skirmish customs
+     ├─ state: mechbay, storage, live mechlab, skirmish customs, combat briefing
+     ├─ writes: refit work orders, skirmish saves, combat orders
+     ├─ combat: AITeam decision hook (stock AI suggests, agent decides)
      └─ HttpListener on 127.0.0.1:8787, JSON envelopes
         ⇅
  btai MCP server (Python)         server/
      ├─ catalog_* / check_mech_build: offline, from the game's JSON data
-     └─ game_* / campaign_* / mechlab_* / skirmish_*: live, via the bridge
+     └─ game_* / campaign_* / mechlab_* / skirmish_* / combat_*: live, via the bridge
 ```
+
+The target is vanilla 1.9.1 with ModTek, and BTBridge as the only mod. Overhaul packs such as RogueTech or BTA (MechEngineer, CustomComponents, CustomAmmoCategories, CleverGirl) change mech construction and patch the same AI methods, so they aren't supported.
 
 How the game works inside, and why the hooks sit where they do, is covered in [docs/GAME_INTERNALS.md](docs/GAME_INTERNALS.md).
 
@@ -22,10 +31,13 @@ How the game works inside, and why the hooks sit where they do, is covered in [d
 |---|---|
 | Offline catalog: components, chassis, stock mechs | working and tested against the installed data |
 | Offline build pre-check: tonnage, slots, hardpoints, armor, jump jets, ammo | working; passes every regular stock mech; each rule mutation-tested |
-| MCP server (21 tools) | working; the live tools report clearly when the game isn't reachable |
+| MCP server (31 tools) | working; the live tools report clearly when the game isn't reachable |
 | BTBridge mod: read endpoints | verified in-game (career): company, mechbay, storage, live mechlab |
 | Writes: live validation, campaign refit preview/apply, skirmish mechs/lances | verified in-game: armor, removal, move, install-from-storage refits complete correctly |
-| Combat agent hook | designed, not built |
+| Combat: decision hook, accept/move/attack/brace orders | verified in-game (skirmish, agent commanding the player lance): waits indefinitely, move→attack stages, melee, indirect fire, Ace Pilot shoot-then-move |
+| Combat: move snapping, unit-guarded answers, reachable query | built after the first skirmish; compiles, not yet run in-game |
+| Combat: side briefing, standing orders, activation order, enemy-side control | built; compiles, not yet run in-game |
+| Campaign layer: contracts, travel, time/events, pilots, store | being researched |
 
 ## Build and test
 
@@ -74,3 +86,33 @@ Every response is `{"ok": true, "data": ...}` or `{"ok": false, "error": "..."}`
 | `POST /skirmish/lances`, `DELETE /skirmish/lances?id=` | save a lance (1 to 4 `{mech_id, pilot_id}`) / delete one |
 
 Every build-taking route uses the game's mechdef shape: `{"ChassisID", "Locations": [{"Location", "AssignedArmor", "AssignedRearArmor"}], "inventory": [{"ComponentDefID", "MountedLocation"}]}`. Fixed equipment is left out because the chassis supplies it.
+
+### Combat routes
+
+| Route | Returns |
+|---|---|
+| `GET/POST /combat/control` | who commands each side, `{player, enemy, decision_timeout_seconds}`. Applies from the next mission start |
+| `GET /combat/briefing?side=` | the whole board from one side's visibility: initiative bar, own units with terrain and a per-enemy engagement matrix, contacts, last-seen lost contacts |
+| `GET /combat/state?side=` | compact board summary |
+| `GET /combat/decision` | the open decision: unit, stage, side, the stock AI's suggestion, top influence-map candidates, per-weapon hit chances, any `standing_order_error` |
+| `POST /combat/decision` | `{id, unit, order}`. `order.action` is `accept`, `move`, `attack` or `brace`. `unit` must match the decision's unit |
+| `GET/POST /combat/orders` | standing orders for the round: per unit an optional move and attack, `sequence` and `on_invalid` |
+| `GET /combat/reachable?move=&x=&z=&limit=` | reachable points for the deciding unit, nearest first to a focus point |
+| `GET /combat/history` | the last 50 decisions and how they were resolved |
+
+Control modes:
+- **player:** `Human` (vanilla, but the board is still readable for advice), `Agent`, or `BuiltinAI` (the stock AI plays your lance).
+- **enemy:** `StockAI` or `Agent` (every AI team hostile to the player).
+
+An agent-commanded player lance can't be selected in the HUD.
+
+### Playing a combat round as the agent
+
+1. `combat_briefing` once per round to read the board: turn order, engagements, cover.
+2. `combat_set_orders` to plan every unit: move, attack and activation sequence.
+3. `combat_wait_for_decision`. Planned units act instantly, so a decision only stays open when a plan no longer fits (`standing_order_error`) or a unit had no orders. Answer it with `combat_decide`.
+
+Snags found in-game, in more detail in [docs/GAME_INTERNALS.md](docs/GAME_INTERNALS.md):
+- Movement grids are sparse, so move orders snap to the nearest reachable node within 25 m.
+- Line of sight isn't line of fire. A unit on a ridge can see a target it can't shoot.
+- Weapon uids repeat across units, which is why answers must name their unit.
