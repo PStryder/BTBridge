@@ -598,16 +598,22 @@ namespace BTBridge.Ui
         private void DrawHistory(float width)
         {
             List<OverlayMessage> items;
+            int hidden;
             lock (Sync)
             {
                 items = Feed.HistoryView();
+                hidden = Feed.History.Count - items.Count;
             }
             float height = Screen.height * 0.5f;
             var area = new Rect(Screen.width - width - 12, Screen.height * 0.12f, width, height);
             historyRect = area;
             GUILayout.BeginArea(area, panelStyle);
             GUILayout.BeginHorizontal();
-            GUILayout.Label($"History ({items.Count}) · Ctrl+Shift+H");
+            // Say when channel settings hide messages: an empty list with all channels off read as
+            // "nothing was sent" in the career test.
+            GUILayout.Label(hidden > 0
+                ? $"History ({items.Count}) · {hidden} hidden by channel settings (Ctrl+Shift+O)"
+                : $"History ({items.Count}) · Ctrl+Shift+H");
             GUILayout.FlexibleSpace();
             if (GUILayout.Button("Close", GUILayout.Width(70)))
             {
