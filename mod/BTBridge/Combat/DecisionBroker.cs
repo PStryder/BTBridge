@@ -107,6 +107,11 @@ namespace BTBridge.Combat
             }
             Current = d;
             Log.Info($"decision {d.Id} opened: {d.Side} {unit.DisplayName} round {d.Round} phase {d.Phase} stage {d.Stage}");
+            if (d.Stage == "move")
+            {
+                // Once per activation (the attack stage opens with the camera already there).
+                CameraFollow.OnTurnOpened(unit);
+            }
             StandingOrders.TryExecute(team, unit, d);
         }
 

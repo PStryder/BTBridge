@@ -205,6 +205,9 @@ namespace BTBridge.Logic
         /// <summary>Hold enemy decision messages until that decision has been carried out.</summary>
         public bool RevealEnemyDecisionsAfterAction = true;
 
+        /// <summary>Pan the camera to each agent- or AI-driven unit as its turn opens (visible units only).</summary>
+        public bool FollowActingUnit = true;
+
         public IReadOnlyList<OverlayMessage> History => history;
 
         public OverlayMessage Post(Channel channel, string speaker, string cleanText, DateTime now, string enemyDecisionId)

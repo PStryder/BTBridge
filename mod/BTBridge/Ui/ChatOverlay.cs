@@ -230,6 +230,21 @@ namespace BTBridge.Ui
             {
                 Feed.RevealEnemyDecisionsAfterAction = PlayerPrefs.GetInt(PrefPrefix + "RevealAfterAction") == 1;
             }
+            if (PlayerPrefs.HasKey(PrefPrefix + "FollowActingUnit"))
+            {
+                Feed.FollowActingUnit = PlayerPrefs.GetInt(PrefPrefix + "FollowActingUnit") == 1;
+            }
+        }
+
+        public static bool FollowActingUnit
+        {
+            get
+            {
+                lock (Sync)
+                {
+                    return Feed.FollowActingUnit;
+                }
+            }
         }
 
         private static void SavePrefs()
@@ -239,6 +254,7 @@ namespace BTBridge.Ui
                 PlayerPrefs.SetInt(PrefPrefix + kv.Key, kv.Value ? 1 : 0);
             }
             PlayerPrefs.SetInt(PrefPrefix + "RevealAfterAction", Feed.RevealEnemyDecisionsAfterAction ? 1 : 0);
+            PlayerPrefs.SetInt(PrefPrefix + "FollowActingUnit", Feed.FollowActingUnit ? 1 : 0);
             PlayerPrefs.Save();
         }
 
@@ -510,6 +526,12 @@ namespace BTBridge.Ui
                 if (reveal != Feed.RevealEnemyDecisionsAfterAction)
                 {
                     Feed.RevealEnemyDecisionsAfterAction = reveal;
+                    changed = true;
+                }
+                bool follow = GUILayout.Toggle(Feed.FollowActingUnit, " Camera follows the acting unit (visible units only)");
+                if (follow != Feed.FollowActingUnit)
+                {
+                    Feed.FollowActingUnit = follow;
                     changed = true;
                 }
             }
