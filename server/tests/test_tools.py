@@ -39,6 +39,9 @@ def rec(monkeypatch):
 
 
 CASES = [
+    (server.overlay_say, {"type": "commentary", "text": "Nice shot."}, "POST", "/overlay/say",
+     {"type": "commentary", "text": "Nice shot."}),
+    (server.overlay_history, {}, "GET", "/overlay/history", None),
     (server.sim_status, {}, "GET", "/sim/status", None),
     (server.sim_interrupt, {}, "GET", "/sim/interrupt", None),
     (server.sim_answer_interrupt, {"answer": {"option": 1}}, "POST", "/sim/interrupt", {"option": 1}),

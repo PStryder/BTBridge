@@ -107,6 +107,20 @@ Every build-taking route uses the game's mechdef shape: `{"ChassisID", "Location
 
 Several of these mirror a screen that does its own checks. Where the underlying game method doesn't validate anything, the bridge repeats those checks: hiring, limited-stock purchases, Argo requirements, salvage caps, and event double-submits. See [docs/CAMPAIGN_INTERNALS.md](docs/CAMPAIGN_INTERNALS.md).
 
+### In-game chat overlay
+
+The agent can put short messages on screen with `overlay_say(type, text)` (route `POST /overlay/say`):
+- **Placement:** a rolling feed of up to 5 messages on the right edge, **never wider than ⅓ of the screen**. Each fades after 12 s.
+- **History:** the last 20 messages, toggled with **Ctrl+Shift+H**. They are also written to `overlay_log.jsonl`.
+- **Four channels:** `commentary`, `decision`, `warning`, `system`. **Ctrl+Shift+O** opens a pop-up to switch each one on or off live. **Only commentary is on by default.** The choices persist in PlayerPrefs, and only the player can change them; there is no route for it.
+- **Text:** plain text only (Unity markup isn't interpreted), control characters stripped, at most 280 characters and 3 lines, rate-limited to about 1 per second with bursts of 5.
+- **Speaker labels:** added by the mod, not the model: `[YOUR LANCE]`, `[OPFOR]`, `[CAMPAIGN]`.
+- **Hidden plans:** when the agent commands the enemy, its `decision` messages are **held until that unit has acted**. A toggle in the pop-up turns this off.
+- **Non-blocking:** drawn on its own IMGUI layer, so there are no game popups or interrupts and nothing waits on it.
+- **Cheat notices:** they also land on the `system` channel. The red ARMED banner is separate and can't be hidden.
+
+**Planned phase 2, human-to-agent input:** a Ctrl+Shift+T text box feeding an inbox the agent reads. Unread messages would also be attached to `combat_wait_for_decision` and `sim_status`. HBS's debug console (`HBS.DebugConsole`) is an IMGUI text box too. The game checks its visibility in exactly one place (`CombatSelectionHandler`, through `DebugConsole.IsHidden`) before handling combat hotkeys. A postfix there can make our box block the same keys. Camera input still needs research.
+
 ### Operator cheat layer (off by default)
 
 There's a separate, gated tier for explicit operator requests such as "give the company 250M C-bills" or "put an Atlas in bay 3". [docs/CHEATS_DESIGN.md](docs/CHEATS_DESIGN.md) has the full design. Three layers gate it:

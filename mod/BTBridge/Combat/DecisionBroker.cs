@@ -122,6 +122,7 @@ namespace BTBridge.Combat
                 Current = null;
             }
             Log.Info($"decision {d.Id} closed: {how}");
+            Ui.ChatOverlay.OnDecisionClosed(d.Id);
         }
 
         public static void Reset()

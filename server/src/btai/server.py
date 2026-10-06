@@ -258,6 +258,29 @@ def skirmish_delete_lance(lance_id: str) -> dict:
     return _live(f"/skirmish/lances?id={quote(lance_id)}", method="DELETE")
 
 
+# -- in-game chat overlay -------------------------------------------------------
+
+
+@mcp.tool()
+def overlay_say(type: str, text: str) -> dict:
+    """Show a short message on the player's screen (right edge, rolling feed + history).
+
+    type: commentary (on by default) | decision (your plan for the current unit) | warning | system.
+    The player chooses which channels are visible in-game; you cannot. Plain text only, max 280
+    chars / 3 lines, about one message per second. The mod labels you ([YOUR LANCE], [OPFOR],
+    [CAMPAIGN]); when you command the enemy, `decision` messages are held until that unit has
+    acted. Keep it brief and in character: a co-pilot's aside, not an essay.
+    """
+    return _live("/overlay/say", {"type": type, "text": text})
+
+
+@mcp.tool()
+def overlay_history() -> dict:
+    """The last 20 overlay messages (including ones on channels the player has hidden or that are
+    still held), and which channels the player currently shows."""
+    return _live("/overlay/history")
+
+
 # -- campaign: status, interrupts, time -----------------------------------------
 
 

@@ -151,6 +151,7 @@ namespace BTBridge.Cheats
             Notice = text;
             NoticeUntil = DateTime.Now.AddSeconds(6);
             Log.Info("[CHEAT] " + text);
+            Ui.ChatOverlay.System(text);
         }
 
         // -- status and audit -------------------------------------------------------------------

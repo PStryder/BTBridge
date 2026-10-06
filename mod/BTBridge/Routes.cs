@@ -67,6 +67,14 @@ namespace BTBridge
             new Route { Method = "POST", Path = "/skirmish/lances", Handler = SkirmishSaveLance },
             new Route { Method = "DELETE", Path = "/skirmish/lances", Handler = r => Skirmish.DeleteLance(r.QueryOr("id", null)) },
 
+            // in-game chat overlay (output only; channel visibility is the operator's, in-game)
+            new Route { Method = "POST", Path = "/overlay/say", Handler = r =>
+                {
+                    var b = Body(r);
+                    return Ui.ChatOverlay.Say(b.Value<string>("type"), b.Value<string>("text"));
+                } },
+            new Route { Method = "GET", Path = "/overlay/history", Handler = r => Ui.ChatOverlay.History() },
+
             // campaign: status, interrupts, time
             new Route { Method = "GET", Path = "/sim/status", Handler = r => Interrupts.Status(RequireSim()) },
             new Route { Method = "GET", Path = "/sim/interrupt", Handler = r => Interrupts.Describe(RequireSim()) },

@@ -39,6 +39,7 @@ namespace BTBridge
                 Cheats.CheatConfig.Init(Settings.AllowCheats, Settings.CheatArmMinutes, Settings.CheatArmMaxOps, Settings.CheatArmHotkey);
                 Cheats.CheatService.Init(modDir);
                 HarmonyInstance.Create("hexylab.btbridge").PatchAll(Assembly.GetExecutingAssembly());
+                Ui.ChatOverlay.Create(modDir);
                 if (Cheats.CheatConfig.Capability)
                 {
                     Cheats.CheatOverlay.Create();
