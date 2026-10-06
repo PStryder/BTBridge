@@ -66,7 +66,14 @@ namespace BTBridge.State
             }
             if (unknown.Count > 0)
             {
-                throw new BridgeException(400, "unknown or unloaded components: " + string.Join(", ", unknown.ToArray()));
+                // Real but not-yet-loaded ids trigger a load and a 409 "retry"; only truly unknown remain.
+                var reallyUnknown = DataLoader.RequestMissing(dm, unknown, DataLoader.ComponentTypes);
+                throw new BridgeException(400, "unknown components: " + string.Join(", ", reallyUnknown.ToArray()));
+            }
+            if (!dm.ChassisDefs.Exists(spec.ChassisId))
+            {
+                DataLoader.RequestMissing(dm, new[] { spec.ChassisId }, BattleTechResourceType.ChassisDef);
+                throw new BridgeException(400, $"unknown chassis '{spec.ChassisId}'");
             }
             return spec;
         }
