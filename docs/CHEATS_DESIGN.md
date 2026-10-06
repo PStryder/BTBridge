@@ -153,10 +153,9 @@ These reuse the refit-plan and event-guard lessons:
 
 - **No forced save in normal campaigns.** The operator keeps "reload my last save" as an undo. The game saves at its usual points, and the cheat marker goes with the next one.
 - An optional `save_after: true` on execute calls `TriggerSaveNow(SaveReason.MANUAL, QUEUE_IF_NEEDED)` for operators who want it locked in.
-- **Ironman** (`sim.IsIronmanCampaign`): the single-slot autosave makes cheats irreversible.
-  - **Refused by default.**
-  - A separate restart-time setting (`AllowCheatsInIronman`) enables it.
-  - When enabled, every preview states that the change will be permanent. Execute calls `TriggerIronManSave()` afterwards, so the save matches the state rather than catching up at an arbitrary later point.
+- **Ironman** (`sim.IsIronmanCampaign`): the single-slot autosave would make cheats irreversible, so cheats are **refused outright** in Ironman campaigns. There is no override setting.
+  - Both preview and execute return `403 cheats are not available in Ironman campaigns`.
+  - Arming still works, so the overlay can say why.
 
 ## 8. Tests
 
@@ -185,7 +184,7 @@ In-game (in the combined test session, once built):
 - Completing a refit early still reconciles storage.
 - Argo completion produces the normal notification.
 - Hotkey arm and disarm, with the overlay; expiry; a refusal when disarmed.
-- Ironman refused.
+- Ironman refused, with no override.
 
 ## 9. Staged build plan
 
@@ -208,7 +207,7 @@ In-game (in the combined test session, once built):
 
 2. **Decided (2026-10-06):** the campaign marker is **on by default**: company tag `btbridge_cheats_used` plus the `BTBRIDGE_CheatOps` counter, added on the first executed cheat.
 
-3. **Decided (2026-10-06):** **Ironman** is refused by default. It is allowed only with the restart-time setting `AllowCheatsInIronman`. When allowed, previews warn that the change is permanent, and execute calls `TriggerIronManSave()`.
+3. **Decided (2026-10-06):** cheats are **refused outright in Ironman campaigns**, with no override setting.
 4. **Decided (2026-10-06):** **build speed in v1 is option A only**: finish now, for mechlab work, the Argo upgrade and the medbay.
    - Option B (session multiplier) and option C (permanent stat deltas) stay in the "later, opt-in" stage.
 
