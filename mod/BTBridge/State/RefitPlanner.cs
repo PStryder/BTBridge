@@ -259,8 +259,8 @@ namespace BTBridge.State
             sim.MechLabQueue.Add(plan.WorkOrder);
             sim.InitializeMechLabEntry(plan.WorkOrder, 0);
             sim.UpdateMechLabWorkQueue(passDay: false);
-            var ui = LazySingletonBehavior<UIManager>.Instance;
-            ui.StartCoroutine(sim.RoomManager.DelayedRefreshTimeline(0.1f));
+            var ui = BTBridge.Ui.GameUi.Existing();
+            ui?.StartCoroutine(sim.RoomManager.DelayedRefreshTimeline(0.1f));
             sim.TriggerIronManSave();
             Plans.Remove(planId);
             Log.Info($"applied {planId} to {mech.Description.Name} ({mech.GUID}): {plan.WorkOrder.SubEntryCount} steps, {plan.CBills} C-bills");

@@ -44,7 +44,7 @@ namespace BTBridge.Sim
         public static List<UIModule> VisiblePopups()
         {
             var found = new List<UIModule>();
-            var ui = LazySingletonBehavior<UIManager>.Instance;
+            var ui = BTBridge.Ui.GameUi.Existing();
             if (ui == null)
             {
                 return found;

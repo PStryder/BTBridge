@@ -82,7 +82,8 @@ namespace BTBridge.Ui
             }
             try
             {
-                var look = HBS.LazySingletonBehavior<BattleTech.UI.UIManager>.Instance?.UILookAndColorConstants;
+                // Never via .Instance: that would create the UIManager before the game does.
+                var look = GameUi.Existing()?.UILookAndColorConstants;
                 if (look == null)
                 {
                     return;
@@ -535,7 +536,11 @@ namespace BTBridge.Ui
                 {
                     return 0f;
                 }
-                var ui = HBS.LazySingletonBehavior<BattleTech.UI.UIManager>.Instance;
+                var ui = GameUi.Existing();
+                if (ui == null)
+                {
+                    return 0f;
+                }
                 Camera cam = ui.UIRoot != null && ui.UIRoot.renderMode == RenderMode.ScreenSpaceCamera ? ui.UICamera : null;
                 var corners = new Vector3[4];
                 rect.GetWorldCorners(corners);
