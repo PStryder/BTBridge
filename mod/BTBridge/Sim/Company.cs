@@ -152,8 +152,22 @@ namespace BTBridge.Sim
                     skills = new { gunnery = d.BaseGunnery, piloting = d.BasePiloting, guts = d.BaseGuts, tactics = d.BaseTactics },
                     hiring_cost = system.GetPurchaseCostAfterReputationModifier(sim.GetMechWarriorHiringCost(d)),
                     salary = sim.GetMechWarriorValue(d),
+                    // Hire refuses these; say so up front (found when Truce was refused in the career test).
+                    mrb_allows = SafeMrb(sim, d),
                 }).ToList(),
             };
+        }
+
+        private static bool? SafeMrb(SimGameState sim, PilotDef d)
+        {
+            try
+            {
+                return sim.CanMechWarriorBeHiredAccordingToMRBRating(new Pilot(d, "hire-check", false));
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         /// <summary>StarSystem.HirePilot does no checks; these mirror SG_HiringHall_Screen.CanHireSelectedPilot.</summary>
@@ -313,8 +327,21 @@ namespace BTBridge.Sim
         {
             RequireQuiet(sim);
             var shop = GetShop(sim, which);
+            if (count < 1 || count > 50)
+            {
+                throw new BridgeException(400, "count must be 1..50");
+            }
+            // All or nothing: the career test asked for 5 of an item it had 1 of, and the old loop
+            // quietly sold the 1.
+            int owned = shop.GetAllInventoryShopItems()
+                .Where(i => i.ID == id && (type == null || i.Type.ToString() == type))
+                .Sum(i => i.Count);
+            if (owned < count)
+            {
+                throw new BridgeException(409, $"asked to sell {count} of '{id}' but the company has {owned}; nothing sold");
+            }
             int sold = 0;
-            for (int n = 0; n < Math.Max(1, Math.Min(count, 50)); n++)
+            for (int n = 0; n < count; n++)
             {
                 var item = shop.GetAllInventoryShopItems().FirstOrDefault(i => i.ID == id && (type == null || i.Type.ToString() == type) && i.Count > 0);
                 if (item == null)

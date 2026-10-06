@@ -267,7 +267,7 @@ namespace BTBridge.State
             return new { applied = true, plan_id = planId, mech_guid = mech.GUID, cbills_charged = plan.CBills, funds = sim.Funds, work_queue_entries = sim.MechLabQueue.Count };
         }
 
-        private static MechDef FindActiveMech(SimGameState sim, string mechRef, out int bay)
+        internal static MechDef FindActiveMech(SimGameState sim, string mechRef, out int bay)
         {
             if (string.IsNullOrEmpty(mechRef))
             {

@@ -56,6 +56,7 @@ CASES = [
      "/sim/contracts/accept", {"index": 2, "name": "Raid", "pay": 0.6, "salvage": 0.2}),
     (server.contract_launch, {"units": [{"bay": 0, "pilot": "Glitch"}]}, "POST", "/sim/contracts/launch",
      {"units": [{"bay": 0, "pilot": "Glitch"}]}),
+    (server.campaign_repair, {"bay": 0}, "POST", "/sim/repair", {"mech": "0", "confirm": False}),
     (server.mission_status, {}, "GET", "/combat/mission", None),
     (server.mission_begin, {}, "POST", "/combat/begin", {}),
     (server.combat_dialog, {}, "GET", "/combat/dialog", None),

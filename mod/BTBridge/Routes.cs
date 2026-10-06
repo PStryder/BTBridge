@@ -55,6 +55,11 @@ namespace BTBridge
             // campaign (write: preview is side-effect free, apply commits)
             new Route { Method = "POST", Path = "/sim/refit/preview", Handler = RefitPreview },
             new Route { Method = "POST", Path = "/sim/refit/apply", Handler = r => RefitPlanner.Apply(RequireSim(), Body(r).Value<string>("plan_id")) },
+            new Route { Method = "POST", Path = "/sim/repair", Handler = r =>
+                {
+                    var b = Body(r);
+                    return RepairPlanner.Repair(RequireSim(), b.Value<string>("mech"), b.Value<bool?>("confirm") ?? false);
+                } },
 
             // any mode
             new Route { Method = "POST", Path = "/mech/validate", Handler = Validate },
