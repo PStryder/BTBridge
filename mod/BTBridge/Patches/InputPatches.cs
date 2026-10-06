@@ -14,7 +14,9 @@ namespace BTBridge.Patches
     {
         public static void Postfix(ref bool __result)
         {
-            if (ChatOverlay.Typing)
+            // Also while the mouse is over an open overlay panel, so clicking its buttons
+            // doesn't select or move a mech underneath.
+            if (ChatOverlay.Typing || ChatOverlay.PointerOverPanel)
             {
                 __result = false;
             }

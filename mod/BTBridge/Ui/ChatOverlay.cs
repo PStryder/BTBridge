@@ -48,16 +48,58 @@ namespace BTBridge.Ui
         private bool settingsOpen;
         private bool historyOpen;
         private Vector2 historyScroll;
-        private Rect settingsRect = new Rect(60, 160, 300, 210);
+        private Rect settingsRect = new Rect(60, 160, 340, 240);
+        private Rect historyRect;
+
+        /// <summary>
+        /// True while the mouse is over an open overlay panel: a click there must not also reach
+        /// the game (select or move a mech). Gated like typing, through the console check.
+        /// </summary>
+        public static bool PointerOverPanel { get; private set; }
         private GUIStyle textStyle;
+        private GUIStyle panelStyle;
+        private Texture2D backing;
+        private bool gameColorsRead;
+
+        // The agent's own words (commentary, decisions) use the game's primary-objective color,
+        // read at runtime from UILookAndColorConstants; this is only the fallback until then.
+        private static readonly Color ObjectiveYellowFallback = new Color(0.97f, 0.80f, 0.25f);
         private readonly Dictionary<Channel, Color> colors = new Dictionary<Channel, Color>
         {
-            [Channel.Commentary] = new Color(0.92f, 0.92f, 0.92f),
-            [Channel.Decision] = new Color(0.45f, 0.85f, 1f),
-            [Channel.Warning] = new Color(1f, 0.75f, 0.3f),
-            [Channel.System] = new Color(0.65f, 0.65f, 0.65f),
-            [Channel.Operator] = new Color(0.6f, 1f, 0.6f),
+            [Channel.Commentary] = ObjectiveYellowFallback,
+            [Channel.Decision] = ObjectiveYellowFallback,
+            [Channel.Warning] = new Color(1f, 0.45f, 0.35f),
+            [Channel.System] = new Color(0.85f, 0.85f, 0.85f),
+            [Channel.Operator] = new Color(0.55f, 1f, 0.55f),
         };
+
+        private void ReadGameColors()
+        {
+            if (gameColorsRead)
+            {
+                return;
+            }
+            try
+            {
+                var look = HBS.LazySingletonBehavior<BattleTech.UI.UIManager>.Instance?.UILookAndColorConstants;
+                if (look == null)
+                {
+                    return;
+                }
+                var c = look.ObjectiveColorPrimary.color;
+                if (c.a > 0f)
+                {
+                    var opaque = new Color(c.r, c.g, c.b, 1f);
+                    colors[Channel.Commentary] = opaque;
+                    colors[Channel.Decision] = opaque;
+                    gameColorsRead = true;
+                }
+            }
+            catch
+            {
+                // UI not up yet (main menu loading); keep the fallback and try again later.
+            }
+        }
 
         public static void Create(string modDir)
         {
@@ -435,14 +477,24 @@ namespace BTBridge.Ui
             }
             inputStyle = new GUIStyle(GUI.skin.textField) { richText = false, fontSize = 14, alignment = TextAnchor.MiddleLeft };
             inputLabelStyle = new GUIStyle(GUI.skin.label) { richText = false, fontSize = 12, alignment = TextAnchor.MiddleLeft };
+            // Brighter on screen: bold, larger text on a darker, more opaque backing (the stock
+            // IMGUI box is a dim translucent grey).
+            backing = new Texture2D(1, 1);
+            backing.SetPixel(0, 0, new Color(0.04f, 0.04f, 0.05f, 0.88f));
+            backing.Apply();
             textStyle = new GUIStyle(GUI.skin.box)
             {
                 richText = false,
                 wordWrap = true,
                 alignment = TextAnchor.UpperLeft,
-                fontSize = 13,
-                padding = new RectOffset(8, 8, 5, 5),
+                fontSize = 15,
+                fontStyle = FontStyle.Bold,
+                padding = new RectOffset(9, 9, 6, 6),
             };
+            textStyle.normal.background = backing;
+            textStyle.normal.textColor = Color.white;
+            panelStyle = new GUIStyle(GUI.skin.box);
+            panelStyle.normal.background = backing;
         }
 
         private static float PanelWidth => Mathf.Floor(Screen.width / 3f);
@@ -452,6 +504,9 @@ namespace BTBridge.Ui
         private void OnGUI()
         {
             EnsureStyles();
+            ReadGameColors();
+            var mouse = Event.current.mousePosition;
+            PointerOverPanel = (historyOpen && historyRect.Contains(mouse)) || (settingsOpen && settingsRect.Contains(mouse));
             List<OverlayMessage> shown;
             lock (Sync)
             {
@@ -493,8 +548,16 @@ namespace BTBridge.Ui
             }
             float height = Screen.height * 0.5f;
             var area = new Rect(Screen.width - width - 12, Screen.height * 0.12f, width, height);
-            GUILayout.BeginArea(area, GUI.skin.box);
-            GUILayout.Label($"History ({items.Count}) · Ctrl+Shift+H to close");
+            historyRect = area;
+            GUILayout.BeginArea(area, panelStyle);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label($"History ({items.Count}) · Ctrl+Shift+H");
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Close", GUILayout.Width(70)))
+            {
+                historyOpen = false;
+            }
+            GUILayout.EndHorizontal();
             historyScroll = GUILayout.BeginScrollView(historyScroll);
             foreach (var m in items)
             {
