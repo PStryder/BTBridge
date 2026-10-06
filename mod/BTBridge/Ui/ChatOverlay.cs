@@ -15,7 +15,7 @@ namespace BTBridge.Ui
     /// In-game chat overlay: agent text on screen, drawn with IMGUI on its own GameObject.
     /// - Plain text only (richText off), capped and rate-limited (Logic/OverlayRules).
     /// - Four channels; the operator toggles each live (Ctrl+Shift+O); only commentary is on by default.
-    /// - Rolling feed on the right edge, never wider than a third of the screen; history on Ctrl+Shift+H.
+    /// - Rolling feed on the right edge, as wide as the combat HUD's objectives panel; history on Ctrl+Shift+H.
     /// - The mod labels the speaker, not the model; enemy decisions are held until carried out.
     /// Never opens game popups or interrupts, and nothing waits on it.
     /// </summary>
@@ -70,7 +70,8 @@ namespace BTBridge.Ui
             [Channel.Decision] = ObjectiveYellowFallback,
             [Channel.Warning] = new Color(1f, 0.45f, 0.35f),
             [Channel.System] = new Color(0.85f, 0.85f, 0.85f),
-            [Channel.Operator] = new Color(0.55f, 1f, 0.55f),
+            // Softer, lighter green: the bright terminal green was hard to read.
+            [Channel.Operator] = new Color(0.72f, 0.95f, 0.78f),
         };
 
         private void ReadGameColors()
@@ -475,7 +476,11 @@ namespace BTBridge.Ui
             {
                 return;
             }
-            inputStyle = new GUIStyle(GUI.skin.textField) { richText = false, fontSize = 14, alignment = TextAnchor.MiddleLeft };
+            inputStyle = new GUIStyle(GUI.skin.textField) { richText = false, fontSize = 15, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleLeft };
+            foreach (var st in new[] { inputStyle.normal, inputStyle.focused, inputStyle.hover, inputStyle.active })
+            {
+                st.textColor = new Color(0.72f, 0.95f, 0.78f);
+            }
             inputLabelStyle = new GUIStyle(GUI.skin.label) { richText = false, fontSize = 12, alignment = TextAnchor.MiddleLeft };
             // Brighter on screen: bold, larger text on a darker, more opaque backing (the stock
             // IMGUI box is a dim translucent grey).
@@ -497,7 +502,53 @@ namespace BTBridge.Ui
             panelStyle.normal.background = backing;
         }
 
-        private static float PanelWidth => Mathf.Floor(Screen.width / 3f);
+        // Match the combat HUD's objectives panel (the operator asked for the HUD's own width; a
+        // third of the screen was far too wide). Measured from the live panel in combat, cached;
+        // outside combat, the same share of the screen it last had (or a default).
+        private float hudShare = 0.2f;
+        private float nextMeasure;
+
+        private float PanelWidth
+        {
+            get
+            {
+                if (Time.realtimeSinceStartup >= nextMeasure)
+                {
+                    nextMeasure = Time.realtimeSinceStartup + 1f;
+                    float measured = MeasureObjectivesPanel();
+                    if (measured > 0f)
+                    {
+                        hudShare = measured / Screen.width;
+                    }
+                }
+                return Mathf.Floor(Mathf.Clamp(hudShare * Screen.width, 240f, Screen.width / 3f));
+            }
+        }
+
+        private static float MeasureObjectivesPanel()
+        {
+            try
+            {
+                var list = UnityEngine.Object.FindObjectOfType<BattleTech.UI.CombatHUDObjectivesList>();
+                var rect = list?.objectivesStack ?? list?.transform as RectTransform;
+                if (rect == null || !rect.gameObject.activeInHierarchy)
+                {
+                    return 0f;
+                }
+                var ui = HBS.LazySingletonBehavior<BattleTech.UI.UIManager>.Instance;
+                Camera cam = ui.UIRoot != null && ui.UIRoot.renderMode == RenderMode.ScreenSpaceCamera ? ui.UICamera : null;
+                var corners = new Vector3[4];
+                rect.GetWorldCorners(corners);
+                Vector3 a = cam != null ? cam.WorldToScreenPoint(corners[0]) : corners[0];
+                Vector3 b = cam != null ? cam.WorldToScreenPoint(corners[2]) : corners[2];
+                float w = Mathf.Abs(b.x - a.x);
+                return w > 50f ? w : 0f;
+            }
+            catch
+            {
+                return 0f;
+            }
+        }
 
         private string Label(OverlayMessage m) => $"[{m.Speaker}] {m.Text}";
 
