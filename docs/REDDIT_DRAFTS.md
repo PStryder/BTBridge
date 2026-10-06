@@ -1,8 +1,18 @@
-# Reddit drafts (not posted)
+# Reddit posts and drafts
 
-Drafts for announcing BTBridge. Nothing here has been posted. Fill the `[brackets]` and run the checklist first.
+## Posted
 
-## Before posting
+| Date | Subreddit | Post | Draft |
+|---|---|---|---|
+| 2026-10-06 | r/Battletechgame | [Alpha testers wanted: BattleTech mod that lets an AI play…](https://www.reddit.com/r/Battletechgame/comments/1wzez3y/alpha_testers_wanted_battletech_mod_that_lets_an/) | Draft 3 |
+
+Tester reports from that thread (platform, outcome, logs) go in GitHub issues so they're tracked.
+
+## Drafts
+
+Drafts 1 and 2 are not posted yet. Fill the `[brackets]` and run the checklist first.
+
+### Before posting Drafts 1 and 2
 
 - [x] The GitHub repo is public (confirmed 2026-10-06; not yet promoted anywhere).
 - [ ] Play at least one skirmish against the agent-commanded OpFor, and replace the `[OPFOR TEST]` paragraph with what actually happened (good or bad).
@@ -80,7 +90,7 @@ Repo: https://github.com/PStryder/BTBridge. Vanilla BattleTech 1.9.1 + ModTek. P
 
 ## Draft 3: r/Battletechgame, alpha testers wanted (Windows and macOS)
 
-Ready to post: the v0.1-alpha release is live, and both links were downloaded and checksum-verified on 2026-10-06.
+**Posted 2026-10-06:** https://www.reddit.com/r/Battletechgame/comments/1wzez3y/alpha_testers_wanted_battletech_mod_that_lets_an/ (both download links were checksum-verified before posting).
 
 **Title:** Alpha testers wanted: a BattleTech mod that lets an AI play the campaign (or fight you as the OpFor). Windows and macOS
 
