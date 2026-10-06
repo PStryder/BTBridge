@@ -329,7 +329,8 @@ def sim_answer_interrupt(answer: dict) -> dict:
     """Answer the waiting interrupt, e.g. {"option": 1} for an event (then {"choice": "dismiss"} once
     the result shows), {"choice": "primary" | "secondary"} for a notification, {"expense_level":
     "Normal"} for the quarterly report, {"choice": "collect"} for rewards, {"action": "store"} for
-    mech placement, {"response": i} / {"choice": "continue"} in a conversation."""
+    mech placement, {"response": i, "node": n} / {"choice": "continue"} in a conversation (`node`
+    is from the conversation you read; only enabled, offered responses are accepted)."""
     return _live("/sim/interrupt", answer)
 
 
@@ -656,6 +657,8 @@ def combat_set_orders(orders: list[dict], replace: bool = True) -> dict:
     A unit with neither move nor attack braces. Orders are validated against the live situation
     when the unit activates; if one no longer fits (target dead, spot taken, no line of fire) the
     decision shows standing_order_error. Orders expire at the end of the round.
+    A batch is all or nothing: if any order is rejected, the previous orders stay exactly as they
+    were. Send orders=[] with replace=True to clear the plan.
     """
     return _live("/combat/orders", {"orders": orders, "replace": replace})
 

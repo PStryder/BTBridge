@@ -311,7 +311,6 @@ namespace BTBridge.Cheats
         public static object Execute(string planId)
         {
             var sim = RequireSim();
-            RequireAllowed(sim);
             CheatPlan plan;
             try
             {
@@ -324,13 +323,18 @@ namespace BTBridge.Cheats
             {
                 throw new BridgeException(409, e.Message);
             }
+            // A retry of an executed plan only reports the stored result, so it is answered even
+            // after the window closed (it used to fail the arming check first). New work is gated.
             if (plan.Executed)
             {
                 return new { replay = true, plan_id = planId, result = plan.Result, note = "already executed; nothing changed" };
             }
+            RequireAllowed(sim);
             var outcome = Ops.Execute(sim, plan.Op, (JObject)plan.Payload);
             Mark(sim);
             string saveState = Saves.OnCheatExecuted(plan.Id);
+            // Read before Consume: spending the last budgeted op disarms and clears the session.
+            var armSession = Gate.ArmSession;
             Gate.Consume();
             var result = new
             {
@@ -351,7 +355,7 @@ namespace BTBridge.Cheats
                 op = plan.Op,
                 args = plan.Payload,
                 operator_request = plan.OperatorRequest,
-                arm_session = Gate.ArmSession,
+                arm_session = armSession,
                 before = outcome.Before,
                 after = outcome.After,
                 save_state = saveState,

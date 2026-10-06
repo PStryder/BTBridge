@@ -145,6 +145,20 @@ namespace BTBridge.State
             {
                 throw new BridgeException(400, $"unknown or unloaded chassis '{spec.ChassisId}'");
             }
+            // Per-location limits first: neither the game's validator nor LocationLoadoutDef checks them.
+            var armorProblems = MechSerializer.Locations
+                .Select(loc =>
+                {
+                    var cl = chassis.GetLocationDef(loc);
+                    return BTBridge.Logic.ArmorRules.Problem(loc.ToString(), spec.FrontFor(loc, 0f),
+                        spec.RearFor(loc, HasRear(loc) ? 0f : -1f), cl.MaxArmor, cl.MaxRearArmor, HasRear(loc));
+                })
+                .Where(p => p != null)
+                .ToList();
+            if (armorProblems.Count > 0)
+            {
+                throw new BridgeException(400, "armor out of range: " + string.Join("; ", armorProblems.ToArray()));
+            }
             var locations = MechSerializer.Locations.Select(loc =>
             {
                 var cl = chassis.GetLocationDef(loc);

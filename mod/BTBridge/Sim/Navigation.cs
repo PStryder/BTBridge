@@ -126,6 +126,12 @@ namespace BTBridge.Sim
             {
                 return;
             }
+            // The path (and its cost) must be the requested destination's, not a previous preview's.
+            var path = map.PotentialPath;
+            if (!BTBridge.Logic.TravelRoute.Matches(path[0]?.System?.ID, path[path.Count - 1]?.System?.ID, sim.CurSystem?.ID, job.SystemId))
+            {
+                return;
+            }
             job.Days = map.ProjectedTravelTime;
             job.Cost = map.ProjectedTravelCost;
             if (!job.Confirm)
@@ -133,9 +139,20 @@ namespace BTBridge.Sim
                 job.State = "previewed";
                 return;
             }
+            // Re-check at the moment of commitment: frames have passed since the request.
             if (sim.Funds < map.ProjectedTravelCost)
             {
                 job.State = $"refused: travel costs {map.ProjectedTravelCost:N0}, funds {sim.Funds:N0}";
+                return;
+            }
+            if (sim.TravelManager != null && sim.TravelManager.TravelState != SimGameTravelStatus.IN_SYSTEM)
+            {
+                job.State = $"refused: already travelling ({sim.TravelManager.TravelState})";
+                return;
+            }
+            if (sim.HasTravelContract || (sim.InterruptQueue != null && (sim.InterruptQueue.IsOpen || sim.InterruptQueue.HasQueue)))
+            {
+                job.State = "refused: a travel contract or an interrupt appeared while routing; ask again";
                 return;
             }
             map.SetActivePath();

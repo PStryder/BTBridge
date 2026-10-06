@@ -198,6 +198,52 @@ namespace BTBridge.Logic
         public int VisiblePopups;
     }
 
+    public static class CampaignWrites
+    {
+        /// <summary>
+        /// Why company writes that touch mechs (refit apply, repair) must wait. Combat owns the
+        /// deployed mechs until the contract resolves: post-mission reconciliation replaces the bay
+        /// mechs with the combat result, so a refit committed mid-mission would be overwritten or
+        /// would return parts to storage twice. Reads stay available in every phase.
+        /// </summary>
+        public static List<string> Blockers(SimFacts f)
+        {
+            var b = new List<string>();
+            if (!f.UxAttached || !f.ShipSet) b.Add("the campaign is loading");
+            if (f.InCombat) b.Add("a mission is in progress (combat owns the deployed mechs)");
+            if (f.ContractCompleting) b.Add("the finished contract is still being resolved");
+            if (f.Saving) b.Add("the game is saving");
+            if (f.MechLabOpen) b.Add("the mechlab is open");
+            if (f.LanceConfigOpen) b.Add("lance configuration is open");
+            return b;
+        }
+    }
+
+    public static class PlanBinding
+    {
+        /// <summary>
+        /// A plan is good only in the campaign and the load of it that made it. A plan previewed and
+        /// then carried across a reload of an earlier save could otherwise pass the mech
+        /// fingerprint and insert work-order and component ids the restored campaign never issued.
+        /// </summary>
+        public static bool Valid(string planCampaign, int planEpoch, string currentCampaign, int currentEpoch) =>
+            !string.IsNullOrEmpty(planCampaign) && planCampaign == currentCampaign && planEpoch == currentEpoch;
+    }
+
+    public static class TravelRoute
+    {
+        /// <summary>
+        /// Whether the starmap's computed route is the one asked for. Selecting a new destination
+        /// updates CurSelected at once, but PotentialPath and the projected cost are only replaced
+        /// when that destination's pathfinding completes; until then they still describe the
+        /// previous one. A review reproduced committing A's route after asking for B.
+        /// </summary>
+        public static bool Matches(string pathFirstId, string pathLastId, string currentSystemId, string targetId) =>
+            !string.IsNullOrEmpty(targetId)
+            && pathLastId == targetId
+            && pathFirstId == currentSystemId;
+    }
+
     public static class Idle
     {
         /// <summary>Why the campaign is not idle; empty means it is waiting for the player.</summary>

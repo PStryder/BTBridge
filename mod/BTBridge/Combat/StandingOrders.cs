@@ -40,45 +40,63 @@ namespace BTBridge.Combat
 
         public static object Set(CombatGameState combat, JArray list, bool replace)
         {
-            DropIfStale(combat);
-            if (replace)
+            if (list == null)
             {
-                Orders.Clear();
+                throw new BridgeException(400, "orders must be an array (send [] with replace=true to clear the plan)");
             }
+            DropIfStale(combat);
             var accepted = new List<object>();
-            foreach (var token in list ?? new JArray())
+            try
             {
-                var o = token as JObject ?? throw new BridgeException(400, "each standing order must be an object");
-                string guid = o.Value<string>("unit") ?? throw new BridgeException(400, "standing order needs unit (guid)");
-                var unit = combat.FindActorByGUID(guid) ?? throw new BridgeException(400, $"no unit '{guid}'");
-                if (!CombatControl.IsAgentTeam(unit.team))
+                // Validate the whole batch before touching the live plan: a rejected batch must
+                // leave the previous orders exactly as they were.
+                BTBridge.Logic.AtomicBatch.Apply(Orders, () =>
                 {
-                    throw new BridgeException(400, $"{unit.DisplayName} is not on an agent-controlled team");
-                }
-                var move = o["move"] as JObject;
-                var attack = o["attack"] as JObject;
-                if (move != null)
-                {
-                    move["action"] = "move";
-                }
-                if (attack != null)
-                {
-                    attack["action"] = "attack";
-                }
-                string onInvalid = o.Value<string>("on_invalid") ?? "wait";
-                if (onInvalid != "wait" && onInvalid != "suggestion" && onInvalid != "brace")
-                {
-                    throw new BridgeException(400, "on_invalid must be wait | suggestion | brace");
-                }
-                Orders[guid] = new Order
-                {
-                    Unit = guid,
-                    Sequence = o.Value<int?>("sequence"),
-                    Move = move,
-                    Attack = attack,
-                    OnInvalid = onInvalid,
-                };
-                accepted.Add(new { unit = guid, name = unit.DisplayName, move = move != null, attack = attack != null, sequence = o.Value<int?>("sequence") });
+                    var staged = new List<KeyValuePair<string, Order>>();
+                    foreach (var token in list)
+                    {
+                        var o = token as JObject ?? throw new BridgeException(400, "each standing order must be an object");
+                        string guid = o.Value<string>("unit") ?? throw new BridgeException(400, "standing order needs unit (guid)");
+                        var unit = combat.FindActorByGUID(guid) ?? throw new BridgeException(400, $"no unit '{guid}'");
+                        if (!CombatControl.IsAgentTeam(unit.team))
+                        {
+                            throw new BridgeException(400, $"{unit.DisplayName} is not on an agent-controlled team");
+                        }
+                        var move = o["move"] as JObject;
+                        var attack = o["attack"] as JObject;
+                        if (move != null)
+                        {
+                            move["action"] = "move";
+                        }
+                        if (attack != null)
+                        {
+                            attack["action"] = "attack";
+                        }
+                        string onInvalid = o.Value<string>("on_invalid") ?? "wait";
+                        if (onInvalid != "wait" && onInvalid != "suggestion" && onInvalid != "brace")
+                        {
+                            throw new BridgeException(400, "on_invalid must be wait | suggestion | brace");
+                        }
+                        staged.Add(new KeyValuePair<string, Order>(guid, new Order
+                        {
+                            Unit = guid,
+                            Sequence = o.Value<int?>("sequence"),
+                            Move = move,
+                            Attack = attack,
+                            OnInvalid = onInvalid,
+                        }));
+                        accepted.Add(new { unit = guid, name = unit.DisplayName, move = move != null, attack = attack != null, sequence = o.Value<int?>("sequence") });
+                    }
+                    return staged;
+                }, replace);
+            }
+            catch (ArgumentException e)
+            {
+                throw new BridgeException(400, e.Message + "; nothing changed");
+            }
+            catch (BridgeException e)
+            {
+                throw new BridgeException(e.Status, e.Message + "; the previous orders are unchanged");
             }
             Log.Info($"standing orders set for round {ordersRound}: {Orders.Count} unit(s)");
             return new { round = ordersRound, accepted, total = Orders.Count };

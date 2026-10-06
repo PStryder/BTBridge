@@ -100,6 +100,7 @@ namespace BTBridge.State
             {
                 return new { preview, queued = false, next = entries.Count > 0 ? "repeat with confirm=true to queue it" : null };
             }
+            BTBridge.Sim.CampaignLifecycle.RequireWritable(sim);
             if (sim.Funds < cbills)
             {
                 throw new BridgeException(409, $"repair costs {cbills:n0} C-bills; the company has {sim.Funds:n0}");

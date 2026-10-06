@@ -103,6 +103,13 @@ namespace BTBridge.Bridge
             object envelope;
             try
             {
+                var refusal = BTBridge.Logic.RequestRules.Problem(ctx.Request.Headers["Origin"], ctx.Request.Headers["Sec-Fetch-Site"],
+                    ctx.Request.Headers["Host"], port);
+                if (refusal != null)
+                {
+                    Log.Warn($"refused {ctx.Request.HttpMethod} {ctx.Request.Url.AbsolutePath}: {refusal}");
+                    throw new BridgeException(403, refusal);
+                }
                 var req = ReadRequest(ctx.Request);
                 if (!routes.TryGetValue(Key(req.Method, req.Path), out var route))
                 {
@@ -117,6 +124,16 @@ namespace BTBridge.Bridge
             {
                 status = e.Status;
                 envelope = new { ok = false, error = e.Message };
+            }
+            catch (NotExecutedException e)
+            {
+                status = 503;
+                envelope = new { ok = false, error = e.Message, executed = false };
+            }
+            catch (OutcomeUnknownException e)
+            {
+                status = 504;
+                envelope = new { ok = false, error = e.Message, executed = (bool?)null };
             }
             catch (TimeoutException e)
             {

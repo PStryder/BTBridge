@@ -93,7 +93,13 @@ When ModTek loads, the main menu's version string reads `/W MODTEK`.
 
 ## Bridge API (v0.1)
 
-Every response is `{"ok": true, "data": ...}` or `{"ok": false, "error": "..."}`. A 409 means the game is in the wrong state (no campaign loaded, a popup waiting, a mission still loading). A 503 means the main thread didn't respond.
+Every response is `{"ok": true, "data": ...}` or `{"ok": false, "error": "..."}`. Status codes:
+- **409:** the game is in the wrong state (no campaign loaded, a popup waiting, a mission still loading, or a mech write during combat).
+- **503 with `executed: false`:** the main thread didn't pick the request up in time. It was cancelled and **did not run**, so retrying is safe.
+- **504 with `executed: null`:** it started but didn't finish in time. Its outcome is unknown, so read the state before retrying.
+- **403:** the request came from a web browser, or used an unexpected `Host`. The bridge only serves local programs such as the MCP server.
+
+Plans are bound to the load that made them: a refit plan from before a save reload or a campaign switch is refused. Mech writes (refit apply, repair) are refused while a mission or its contract resolution owns the mechs.
 
 ### Company and mechs
 
@@ -155,7 +161,7 @@ Story routes are **spoiler-gated**: only material already seen in this install (
 | `GET /combat/state?side=` | compact board summary |
 | `GET /combat/decision` | the open decision: unit, stage, side, the stock AI's suggestion, top influence-map candidates, per-weapon hit chances, any `standing_order_error`, waiting dialogue/briefing flags |
 | `POST /combat/decision` | `{id, unit, order}`. `order.action` is `accept`, `move`, `attack` or `brace`. `unit` must match the decision's unit |
-| `GET/POST /combat/orders` | standing orders for the round: per unit an optional move and attack, `sequence` and `on_invalid` |
+| `GET/POST /combat/orders` | standing orders for the round: per unit an optional move and attack, `sequence` and `on_invalid`. All or nothing: a rejected batch leaves the previous plan unchanged |
 | `GET /combat/reachable?move=&x=&z=&limit=` | reachable points for the deciding unit, nearest first to a focus point |
 | `GET /combat/history` | the last 50 decisions and how they were resolved |
 
@@ -169,6 +175,8 @@ An agent-commanded player lance can't be selected in the HUD.
 1. `combat_briefing` once per round to read the board: turn order, engagements, cover, objectives.
 2. `combat_set_orders` to plan every unit: move, attack and activation sequence.
 3. `combat_wait_for_decision`. Planned units act instantly, so a decision stays open only when a plan no longer fits (`standing_order_error`) or a unit had no orders. Answer with `combat_decide`. The wait also returns early for operator messages, mission dialogue and the Begin Mission screen.
+
+**Fog of war:** every combat view is built from what the agent's side can see. A sensor contact shows its position, and its kind (mech, vehicle, turret) only at type-level sensor returns; never its name, facing or loadout. Default move facing only considers detected enemies, and `face_unit` refuses a unit the side no longer detects.
 
 Snags found in-game, in more detail in [docs/GAME_INTERNALS.md](docs/GAME_INTERNALS.md):
 - Movement grids are sparse, so move orders snap to the nearest reachable node within 25 m.

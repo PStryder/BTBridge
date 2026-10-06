@@ -97,7 +97,7 @@ namespace BTBridge.Combat
                 Phase = unit.Combat.TurnDirector.CurrentPhase,
                 Stage = StageFor(unit),
                 Suggestion = suggestion,
-                SuggestionInfo = Describe(unit.Combat, suggestion, LastAiOrder),
+                SuggestionInfo = Describe(unit.Combat, suggestion, LastAiOrder, unit.team),
                 OpenedRealtime = Time.realtimeSinceStartup,
             };
             d.Side = CombatControl.SideOf(team);
@@ -139,7 +139,7 @@ namespace BTBridge.Combat
 
         // -- describing what the stock AI wants --------------------------------------
 
-        private static object Describe(CombatGameState combat, InvocationMessage inv, OrderInfo order)
+        private static object Describe(CombatGameState combat, InvocationMessage inv, OrderInfo order, Team viewer)
         {
             if (inv is ReserveActorInvocation)
             {
@@ -160,7 +160,7 @@ namespace BTBridge.Combat
                     {
                         action = ao.IsMelee ? "melee" : ao.IsDeathFromAbove ? "dfa" : "attack",
                         target = (ao.TargetUnit as AbstractActor)?.GUID,
-                        target_name = (ao.TargetUnit as AbstractActor)?.DisplayName,
+                        target_name = ao.TargetUnit is AbstractActor ta ? CombatSerializer.ContactName(viewer, ta) : null,
                         weapons = ao.Weapons?.Select(w => w.uid).ToList(),
                     };
                 case MultiTargetAttackOrderInfo mt:
@@ -307,7 +307,7 @@ namespace BTBridge.Combat
                     position = CombatSerializer.Position(combat, p),
                     distance_from_focus = CombatSerializer.Round(FlatDistance(p, focus)),
                     nearest_enemy = enemies.Count == 0 ? null : enemies
-                        .Select(e => new { guid = e.GUID, name = e.DisplayName, distance = CombatSerializer.Round(FlatDistance(p, e.CurrentPosition)) })
+                        .Select(e => new { guid = e.GUID, name = CombatSerializer.ContactName(unit.team, e), distance = CombatSerializer.Round(FlatDistance(p, e.CurrentPosition)) })
                         .OrderBy(e => e.distance).First(),
                 }).ToList(),
             };
@@ -500,13 +500,19 @@ namespace BTBridge.Combat
             if (!string.IsNullOrEmpty(faceUnit))
             {
                 var target = unit.Combat.FindActorByGUID(faceUnit) ?? throw new BridgeException(400, $"no unit '{faceUnit}' to face");
+                // Facing a unit the side no longer detects would aim at where it really is now.
+                if (!CombatSerializer.Detected(unit.team, target))
+                {
+                    throw new BridgeException(400, "that unit is not currently detected; give a facing (degrees) instead");
+                }
                 return target.CurrentPosition;
             }
             if (facing.HasValue)
             {
                 return dest + Quaternion.Euler(0f, facing.Value, 0f) * Vector3.forward * 100f;
             }
-            var nearest = unit.Combat.GetAllEnemiesOf(unit).Where(e => !e.IsDead)
+            // Default facing: the nearest enemy this side detects; never one it can't see.
+            var nearest = unit.Combat.GetAllEnemiesOf(unit).Where(e => !e.IsDead && CombatSerializer.Detected(unit.team, e))
                 .OrderBy(e => Vector3.Distance(dest, e.CurrentPosition)).FirstOrDefault();
             return nearest != null ? nearest.CurrentPosition : dest + unit.CurrentRotation * Vector3.forward * 100f;
         }

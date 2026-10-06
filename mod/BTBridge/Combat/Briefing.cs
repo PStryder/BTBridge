@@ -249,7 +249,7 @@ namespace BTBridge.Combat
             return new
             {
                 target = target.GUID,
-                target_name = target.DisplayName,
+                target_name = CombatSerializer.ContactName(unit.team, target),
                 distance = CombatSerializer.Round(dist),
                 line_of_sight = los,
                 line_of_fire = lof,

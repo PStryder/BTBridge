@@ -14,6 +14,8 @@ namespace BTBridge.Patches
         {
             try
             {
+                // Lifecycle first, so requests serviced this frame see the current load.
+                Sim.CampaignLifecycle.Tick();
                 MainThread.Pump();
                 Combat.Briefing.Tick();
                 Sim.SimTicks.Tick();

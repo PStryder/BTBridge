@@ -334,9 +334,10 @@ namespace BTBridge.Sim
                 kind = "Conversation",
                 busy = locked || (bool)Reflect.Get(cm, "isAnimating"),
                 waiting_for_continue = (bool)Reflect.Get(cm, "waitForContinue"),
+                node = CurrentNodeIndex(cm),
                 text,
                 responses,
-                answer = new[] { "{\"response\": index}", "{\"choice\": \"continue\"}" },
+                answer = new[] { "{\"response\": index, \"node\": node}", "{\"choice\": \"continue\"}" },
             };
         }
 
@@ -521,6 +522,26 @@ namespace BTBridge.Sim
             };
         }
 
+        private static int CurrentNodeIndex(SimGameConversationManager cm)
+        {
+            var node = Reflect.Get(cm, "currentNode");
+            return node == null ? -1 : (int)Reflect.Get(node, "index");
+        }
+
+        /// <summary>Exactly what the dialog UI offers: SimGameConversationManager's responseData.</summary>
+        private static List<BTBridge.Logic.OfferedResponse> OfferedResponses(SimGameConversationManager cm)
+        {
+            var offered = new List<BTBridge.Logic.OfferedResponse>();
+            if (Reflect.Get(cm, "responseData") is System.Collections.IEnumerable data)
+            {
+                foreach (var r in data)
+                {
+                    offered.Add(new BTBridge.Logic.OfferedResponse { Index = (int)Reflect.Get(r, "index"), Enabled = (bool)Reflect.Get(r, "isEnabled") });
+                }
+            }
+            return offered;
+        }
+
         private static object AnswerConversation(SimGameState sim, JObject answer)
         {
             var cm = sim.ConversationManager;
@@ -531,6 +552,12 @@ namespace BTBridge.Sim
             int? response = answer.Value<int?>("response");
             if (response.HasValue)
             {
+                var problem = BTBridge.Logic.ConversationRules.Problem(response.Value, answer.Value<int?>("node"),
+                    CurrentNodeIndex(cm), OfferedResponses(cm));
+                if (problem != null)
+                {
+                    throw new BridgeException(problem.StartsWith("the conversation has moved on") ? 409 : 400, problem);
+                }
                 cm.SelectResponse(response.Value);
                 return new { resolved = false, kind = "Conversation", how = "response " + response.Value };
             }

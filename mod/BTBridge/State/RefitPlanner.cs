@@ -34,9 +34,17 @@ namespace BTBridge.State
             public Dictionary<string, int> FromStorage;
             public int CBills;
             public DateTime Created;
+            public string CampaignId;
+            public int Epoch;
         }
 
         private static readonly Dictionary<string, Plan> Plans = new Dictionary<string, Plan>();
+
+        static RefitPlanner()
+        {
+            // A reload or campaign switch voids every plan made against the previous load.
+            Sim.CampaignLifecycle.Changed += () => Plans.Clear();
+        }
         private static int nextPlan;
 
         public static object Preview(SimGameState sim, string mechRef, BuildSpec spec)
@@ -155,9 +163,10 @@ namespace BTBridge.State
                 var max = mech.Chassis.GetLocationDef(loc);
                 float front = spec.FrontFor(loc, have.AssignedArmor);
                 float rear = spec.RearFor(loc, have.AssignedRearArmor);
-                if (front < 0 || front > max.MaxArmor || (MechBuilder.HasRear(loc) && (rear < 0 || rear > max.MaxRearArmor)))
+                var armorProblem = BTBridge.Logic.ArmorRules.Problem(loc.ToString(), front, rear, max.MaxArmor, max.MaxRearArmor, MechBuilder.HasRear(loc));
+                if (armorProblem != null)
                 {
-                    problems.Add($"{loc}: armor {front}/{rear} outside 0..{max.MaxArmor}/{max.MaxRearArmor}");
+                    problems.Add(armorProblem);
                     continue;
                 }
                 int diff = (int)Math.Abs(front - have.AssignedArmor) + (int)Math.Abs(rear - have.AssignedRearArmor);
@@ -195,6 +204,7 @@ namespace BTBridge.State
                 {
                     Id = planId, MechGuid = mech.GUID, Fingerprint = Fingerprint(mech), WorkOrder = order,
                     FromStorage = fromStorage, CBills = cbills, Created = DateTime.UtcNow,
+                    CampaignId = Sim.CampaignLifecycle.CampaignId(sim), Epoch = Sim.CampaignLifecycle.Epoch,
                 };
             }
             return new
@@ -218,10 +228,16 @@ namespace BTBridge.State
             {
                 throw new BridgeException(404, $"no refit plan '{planId}' (plans live until the game restarts; preview again)");
             }
+            if (!BTBridge.Logic.PlanBinding.Valid(plan.CampaignId, plan.Epoch, Sim.CampaignLifecycle.CampaignId(sim), Sim.CampaignLifecycle.Epoch))
+            {
+                Plans.Remove(planId);
+                throw new BridgeException(409, "that plan was made before the campaign was reloaded or switched; preview again");
+            }
             if (MechLabTracker.Live != null)
             {
                 throw new BridgeException(409, "close the mechlab before applying a refit");
             }
+            Sim.CampaignLifecycle.RequireWritable(sim);
             var mech = sim.ActiveMechs.Values.FirstOrDefault(m => m != null && m.GUID == plan.MechGuid)
                 ?? throw new BridgeException(409, "the mech is no longer in an active bay");
             if (Fingerprint(mech) != plan.Fingerprint)

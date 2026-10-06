@@ -61,7 +61,7 @@ namespace BTBridge.Combat
             };
         }
 
-        private static VisibilityLevel Visibility(Team viewer, AbstractActor target)
+        public static VisibilityLevel Visibility(Team viewer, AbstractActor target)
         {
             try
             {
@@ -73,24 +73,46 @@ namespace BTBridge.Combat
             }
         }
 
+        public static string KindOf(AbstractActor a) =>
+            a is Mech ? "mech" : a is Vehicle ? "vehicle" : a is Turret ? "turret" : a.GetType().Name;
+
+        /// <summary>The name a team may use for a unit: real only with full line of sight (or friendly).</summary>
+        public static string ContactName(Team viewer, AbstractActor a)
+        {
+            bool friendly = viewer != null && (a.team == viewer || viewer.IsFriendly(a.team));
+            return BTBridge.Logic.ContactRules.Name(friendly, viewer == null ? 0 : (int)Visibility(viewer, a), a.DisplayName, KindOf(a));
+        }
+
+        /// <summary>Whether a team currently detects a unit at all (a blip counts: its position is known).</summary>
+        public static bool Detected(Team viewer, AbstractActor a) =>
+            viewer != null && (a.team == viewer || viewer.IsFriendly(a.team) || Visibility(viewer, a) > VisibilityLevel.None);
+
         public static Dictionary<string, object> Actor(CombatGameState combat, AbstractActor a, string side, VisibilityLevel visibility)
         {
+            // Fog of war: a sensor contact gets position (and kind at type-level returns) only.
+            // Name and facing used to be filled in before the blip check (review finding).
+            var view = BTBridge.Logic.ContactRules.For(side != "enemy", (int)visibility);
             var d = new Dictionary<string, object>
             {
                 ["guid"] = a.GUID,
-                ["name"] = a.DisplayName,
+                ["name"] = BTBridge.Logic.ContactRules.Name(side != "enemy", (int)visibility, a.DisplayName, KindOf(a)),
                 ["side"] = side,
-                ["team"] = a.team?.DisplayName,
-                ["kind"] = a is Mech ? "mech" : a is Vehicle ? "vehicle" : a is Turret ? "turret" : a.GetType().Name,
                 ["visibility"] = visibility.ToString(),
-                ["position"] = Position(combat, a.CurrentPosition),
-                ["facing"] = Facing(a.CurrentRotation),
             };
-            // Blips (sensor contacts without line of sight) reveal position only.
-            if (side == "enemy" && visibility < VisibilityLevel.LOSFull)
+            if (view.Position)
+            {
+                d["position"] = Position(combat, a.CurrentPosition);
+            }
+            if (view.Kind)
+            {
+                d["kind"] = KindOf(a);
+            }
+            if (!view.Identity)
             {
                 return d;
             }
+            d["team"] = a.team?.DisplayName;
+            d["facing"] = Facing(a.CurrentRotation);
             d["status"] = new
             {
                 operational = a.IsOperational,
@@ -187,7 +209,7 @@ namespace BTBridge.Combat
                 list.Add(new
                 {
                     guid = enemy.GUID,
-                    name = enemy.DisplayName,
+                    name = BTBridge.Logic.ContactRules.Name(false, (int)vis, enemy.DisplayName, KindOf(enemy)),
                     visibility = vis.ToString(),
                     distance = Round(dist),
                     position = Position(combat, enemy.CurrentPosition),
