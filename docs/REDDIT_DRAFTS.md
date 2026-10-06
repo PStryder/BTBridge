@@ -75,3 +75,34 @@ What surprised me: most of the bugs weren't in the hooks but in *reporting*. The
 [OPFOR TEST: one or two sentences.]
 
 Repo: https://github.com/PStryder/battletech-ai. Vanilla BattleTech 1.9.1 + ModTek on Windows; build from source for now.
+
+---
+
+## Draft 3: r/Battletechgame, macOS testers wanted
+
+Before posting: package a prebuilt release zip (`BTBridge.dll`, `mod.json`, `INSTALL-macOS.md`) and replace the bracketed line.
+
+**Title:** Looking for macOS BattleTech players to help test a mod (ModTek, 15–30 minutes)
+
+**Body:**
+
+I've been building a mod that lets an AI agent play HBS BattleTech through the game's own logic: running the campaign, fighting missions, or commanding the OpFor against you, with a small in-game chat overlay. It works on Windows, and I've just added macOS support, but I don't have a Mac to test it on. That's where I need help.
+
+**What I'm looking for:** a few people with BattleTech on a Mac (Steam, v1.9.1), ideally one Intel Mac and one Apple Silicon (the game runs under Rosetta there).
+
+**What the test involves:**
+1. Install ModTek using its macOS instructions, if you don't already have it.
+2. Drop in the mod. [I'll provide a prebuilt zip, so no compiling.]
+3. Launch to the main menu and check that the version string shows ModTek.
+4. Send me two log files: `BTBridge.log` from the mod folder, and ModTek's log from `Mods/.modtek/`.
+
+That's the core test: does it load. If you're up for more, I'll have a short checklist of 2–3 things to try in a skirmish.
+
+**Things to know:**
+- **Vanilla only.** It's built for vanilla BattleTech + ModTek. It won't work alongside RogueTech, BTA or other overhaul packs, so use a clean install or a separate copy.
+- **Saves:** it doesn't touch them unless you use it in a campaign. Back up your saves folder anyway, as with any mod.
+- **It's an early project,** so if something breaks, the logs are exactly what I need. A failure is a useful result.
+
+Repo, with more on what it does: https://github.com/PStryder/battletech-ai
+
+Comment here or DM me if you're willing. Thanks!
