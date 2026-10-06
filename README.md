@@ -23,7 +23,7 @@ BattleTech (Unity/Mono, vanilla + ModTek)
 
 The target is vanilla 1.9.1 with ModTek, and BTBridge as the only mod. Overhaul packs such as RogueTech or BTA (MechEngineer, CustomComponents, CustomAmmoCategories, CleverGirl) change mech construction and patch the same AI methods, so they aren't supported.
 
-How the game works inside, and why the hooks sit where they do, is covered in [docs/GAME_INTERNALS.md](docs/GAME_INTERNALS.md).
+How the game works inside, and why the hooks sit where they do, is covered in [docs/GAME_INTERNALS.md](docs/GAME_INTERNALS.md) (mechbay and combat) and [docs/CAMPAIGN_INTERNALS.md](docs/CAMPAIGN_INTERNALS.md) (campaign layer, researched, with a build plan).
 
 ## Status
 
@@ -37,7 +37,7 @@ How the game works inside, and why the hooks sit where they do, is covered in [d
 | Combat: decision hook, accept/move/attack/brace orders | verified in-game (skirmish, agent commanding the player lance): waits indefinitely, move→attack stages, melee, indirect fire, Ace Pilot shoot-then-move |
 | Combat: move snapping, unit-guarded answers, reachable query | built after the first skirmish; compiles, not yet run in-game |
 | Combat: side briefing, standing orders, activation order, enemy-side control | built; compiles, not yet run in-game |
-| Campaign layer: contracts, travel, time/events, pilots, store | being researched |
+| Campaign layer: contracts, travel, time/events, pilots, store | researched; see docs/CAMPAIGN_INTERNALS.md for findings and build plan |
 
 ## Build and test
 
