@@ -425,6 +425,7 @@ namespace BTBridge.Sim
         {
             var screen = (AAR_SalvageScreen)Reflect.Get(mr, "salvageScreen");
             List<SalvageDef> chosen = new List<SalvageDef>();
+            List<string> pickedNames = new List<string>();
             // Diagnostics: the career test twice reported 0 picks after a valid single pick.
             Log.Info($"salvage: picks requested={picks?.Count ?? -1}, allowed={contract.FinalPrioritySalvageCount}, " +
                 $"already finalized for this contract={ReferenceEquals(salvageFinalizedFor, contract)}, " +
@@ -454,7 +455,11 @@ namespace BTBridge.Sim
                 }
                 // FinalizeSalvage appends and does not cap: exactly once per contract.
                 salvageFinalizedFor = contract;
-                contract.FinalizeSalvage(chosen);
+                // FinalizeSalvage drains the list it is given (RemoveAt(0) until empty), so report
+                // from a snapshot. Reading `chosen` afterwards made every result say 0 picks in the
+                // career test, though the game had taken them.
+                pickedNames = chosen.Select(x => x.Description?.Name ?? x.Description?.Id).ToList();
+                contract.FinalizeSalvage(new List<SalvageDef>(chosen));
             }
             lastResult = new
             {
@@ -462,10 +467,10 @@ namespace BTBridge.Sim
                 outcome = contract.State.ToString(),
                 money = contract.MoneyResults,
                 experience = contract.ExperienceEarned,
-                priority_salvage = chosen.Select(s => s.Description?.Name).ToList(),
+                priority_salvage = pickedNames,
             };
             screen.OnCompleted();
-            Log.Info($"after-action complete for '{contract.Name}': {chosen.Count} priority salvage pick(s)");
+            Log.Info($"after-action complete for '{contract.Name}': {pickedNames.Count} priority salvage pick(s): {string.Join(", ", pickedNames.ToArray())}");
             job = null;
             return new { completed = true, result = lastResult, next = "the campaign resumes; check /sim/status" };
         }

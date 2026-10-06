@@ -136,6 +136,7 @@ namespace BTBridge.Combat
                 {
                     // Keep the raw template if interpolation fails.
                 }
+                line = BTBridge.Logic.GameText.Plain(line);
                 MissionDialog.Text = line;
                 MissionDialog.Record(MissionDialog.Speaker, line, endOfConvo);
             }
@@ -174,7 +175,7 @@ namespace BTBridge.Combat
                 {
                     // Keep the raw template if interpolation fails.
                 }
-                MissionDialog.Record(speakerName, line, null, "radio");
+                MissionDialog.Record(speakerName, BTBridge.Logic.GameText.Plain(line), null, "radio");
             }
             catch (Exception e)
             {
