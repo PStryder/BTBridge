@@ -61,3 +61,28 @@ namespace BTBridge.Patches
         }
     }
 }
+
+namespace BTBridge.Patches
+{
+    /// <summary>
+    /// Diagnostics: every Contract.FinalizeSalvage call, from the bridge or the game's own screens,
+    /// with the priority picks it received. Settles whether a pick reached the game.
+    /// </summary>
+    [HarmonyPatch(typeof(Contract), "FinalizeSalvage")]
+    public static class LogFinalizeSalvage
+    {
+        public static void Prefix(Contract __instance, List<SalvageDef> priorityItems)
+        {
+            try
+            {
+                var names = priorityItems == null ? "null"
+                    : string.Join(", ", priorityItems.ConvertAll(s => s.Description?.Id + " x" + s.Count).ToArray());
+                Log.Info($"Contract.FinalizeSalvage('{__instance.Name}') priority picks: [{names}]\n{Environment.StackTrace}");
+            }
+            catch (Exception e)
+            {
+                Log.Warn("salvage log failed: " + e.Message);
+            }
+        }
+    }
+}

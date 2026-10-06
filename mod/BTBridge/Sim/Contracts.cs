@@ -425,6 +425,10 @@ namespace BTBridge.Sim
         {
             var screen = (AAR_SalvageScreen)Reflect.Get(mr, "salvageScreen");
             List<SalvageDef> chosen = new List<SalvageDef>();
+            // Diagnostics: the career test twice reported 0 picks after a valid single pick.
+            Log.Info($"salvage: picks requested={picks?.Count ?? -1}, allowed={contract.FinalPrioritySalvageCount}, " +
+                $"already finalized for this contract={ReferenceEquals(salvageFinalizedFor, contract)}, " +
+                $"potential={Potential(contract).Count}");
             // With no priority picks the screen confirms (and finalizes) on its own.
             if (contract.FinalPrioritySalvageCount >= 1 && !ReferenceEquals(salvageFinalizedFor, contract))
             {

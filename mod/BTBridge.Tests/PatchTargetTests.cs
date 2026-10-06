@@ -85,6 +85,36 @@ namespace BTBridge.Tests
                 "PatchAll would throw and the mod would not start. Name the argument types.");
         }
 
+        /// <summary>
+        /// Harmony binds patch parameters by name: one that names no parameter of the original (and
+        /// isn't __instance/__result/__state/___field) fails at patch time and the mod doesn't start.
+        /// </summary>
+        [Theory]
+        [MemberData(nameof(Patches))]
+        public void Patch_parameters_name_real_parameters(string patchClass)
+        {
+            var type = typeof(BTBridge.Main).Assembly.GetType(patchClass);
+            var target = Target(type);
+            var original = target.declaringType.GetMethods(All)
+                .Where(m => m.Name == target.methodName)
+                .Where(m => target.argumentTypes == null
+                    || m.GetParameters().Select(p => p.ParameterType).SequenceEqual(target.argumentTypes))
+                .Single();
+            var names = new HashSet<string>(original.GetParameters().Select(p => p.Name));
+            foreach (var patch in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+                         .Where(m => m.Name == "Prefix" || m.Name == "Postfix"))
+            {
+                foreach (var p in patch.GetParameters())
+                {
+                    bool special = p.Name == "__instance" || p.Name == "__result" || p.Name == "__state"
+                        || p.Name.StartsWith("___") || p.Name == "__originalMethod" || p.Name == "__args";
+                    Assert.True(special || names.Contains(p.Name),
+                        $"{patchClass}.{patch.Name}: parameter '{p.Name}' is not a parameter of " +
+                        $"{target.declaringType.Name}.{target.methodName} ({string.Join(", ", names)})");
+                }
+            }
+        }
+
         [Fact]
         public void The_check_catches_an_ambiguous_target()
         {

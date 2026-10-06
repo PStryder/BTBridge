@@ -60,7 +60,8 @@ namespace BTBridge.Combat
             {
                 var contractObjectives = layer.contractObjectiveGameLogicList ?? new ContractObjectiveGameLogic[0];
                 var detailed = layer.GetComponentsInChildren<ObjectiveGameLogic>(true)
-                    .Where(o => o != null && o.displayToUser && !o.IsHidden)
+                    // Ignored = not triggered yet (e.g. reinforcements); listing it would tip off what is coming.
+                    .Where(o => o != null && o.displayToUser && !o.IsHidden && o.CurrentObjectiveStatus != ObjectiveStatus.Ignored)
                     .ToList();
                 return new
                 {
