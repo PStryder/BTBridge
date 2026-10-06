@@ -68,7 +68,7 @@ cd server && uv run pytest -q
 uv run btai-mcp                                  # stdio MCP server
 ```
 
-Environment variables: `BATTLETECH_DIR` (game install, default `F:\SteamLibrary\steamapps\common\BATTLETECH`) and `BTBRIDGE_URL` (default `http://127.0.0.1:8787`).
+Environment variables: `BATTLETECH_DIR` (game install; defaults to the usual Steam location for the OS, `F:\SteamLibrary\steamapps\common\BATTLETECH` on this Windows machine) and `BTBRIDGE_URL` (default `http://127.0.0.1:8787`).
 
 Two test suites guard against the mistakes that stopped the mod from starting during development:
 - **Patch targets:** every `[HarmonyPatch]` must resolve to exactly one game method, and every hook parameter must name a real parameter of it. Harmony binds by name, and either mistake throws inside `PatchAll`, so the whole mod fails to load.
